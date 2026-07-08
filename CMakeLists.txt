@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 4.3.0)
-set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "451f2fe2-a8a2-47c3-bc32-94786d8fc91b")
+set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "f35a9ac6-8463-4d38-8eec-5d6008153e7d")
 project(diff-mass-spring VERSION 1.0.0 LANGUAGES CXX CUDA)
 
 option(DIFF_MASS_SPRING_BUILD_APP "Build the optional Diff Mass-Spring executable" OFF)
