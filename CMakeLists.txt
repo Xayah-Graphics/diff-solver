@@ -1,8 +1,8 @@
-cmake_minimum_required(VERSION 4.3.0)
+cmake_minimum_required(VERSION 4.4.0)
 set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "f35a9ac6-8463-4d38-8eec-5d6008153e7d")
-project(diff-mass-spring VERSION 1.0.0 LANGUAGES CXX CUDA)
+project(diff-solver VERSION 1.0.0 LANGUAGES CXX CUDA)
 
-option(DIFF_MASS_SPRING_BUILD_APP "Build the optional Diff Mass-Spring executable" OFF)
+option(DIFF_SOLVER_BUILD_APP "Build the optional Differentiable Solver executable" OFF)
 
 # ============================================================================
 # C++ Configuration
@@ -66,30 +66,33 @@ endfunction()
 # ============================================================================
 # Optional App
 # ============================================================================
-if (DIFF_MASS_SPRING_BUILD_APP)
-    set(DIFF_MASS_SPRING_UTIL_GIT_TAG "bb261075e7c8a4722b23f42c3be01aa24024731a")
-    set(DIFF_MASS_SPRING_UTIL_VENDOR_DIR "${CMAKE_CURRENT_BINARY_DIR}/vendor/util/${KEYFRAME_UTIL_GIT_TAG}")
+if (DIFF_SOLVER_BUILD_APP)
+    set(DIFF_SOLVER_UTIL_GIT_TAG "bb261075e7c8a4722b23f42c3be01aa24024731a")
+    set(DIFF_SOLVER_UTIL_VENDOR_DIR "${CMAKE_CURRENT_BINARY_DIR}/vendor/util/${KEYFRAME_UTIL_GIT_TAG}")
     download_if_needed(
-            "https://raw.githubusercontent.com/Xayah-Graphics/util/${DIFF_MASS_SPRING_UTIL_GIT_TAG}/xcli.ixx"
-            "${DIFF_MASS_SPRING_UTIL_VENDOR_DIR}/xcli.ixx"
+            "https://raw.githubusercontent.com/Xayah-Graphics/util/${DIFF_SOLVER_UTIL_GIT_TAG}/xcli.ixx"
+            "${DIFF_SOLVER_UTIL_VENDOR_DIR}/xcli.ixx"
     )
     download_if_needed(
-            "https://raw.githubusercontent.com/Xayah-Graphics/util/${DIFF_MASS_SPRING_UTIL_GIT_TAG}/xcli.cpp"
-            "${DIFF_MASS_SPRING_UTIL_VENDOR_DIR}/xcli.cpp"
+            "https://raw.githubusercontent.com/Xayah-Graphics/util/${DIFF_SOLVER_UTIL_GIT_TAG}/xcli.cpp"
+            "${DIFF_SOLVER_UTIL_VENDOR_DIR}/xcli.cpp"
     )
 
     add_library(xayah-util-xcli)
     target_sources(
             xayah-util-xcli
             PRIVATE
-            "${DIFF_MASS_SPRING_UTIL_VENDOR_DIR}/xcli.cpp"
+            "${DIFF_SOLVER_UTIL_VENDOR_DIR}/xcli.cpp"
             PUBLIC
             FILE_SET cxx_modules TYPE CXX_MODULES FILES
-            "${DIFF_MASS_SPRING_UTIL_VENDOR_DIR}/xcli.ixx"
+            "${DIFF_SOLVER_UTIL_VENDOR_DIR}/xcli.ixx"
     )
     set_property(TARGET xayah-util-xcli PROPERTY CXX_MODULE_STD ON)
 
-    add_executable(diff-mass-spring main.cpp)
-    target_link_libraries(diff-mass-spring PRIVATE xayah-util-xcli)
-    set_property(TARGET diff-mass-spring PROPERTY CXX_MODULE_STD ON)
+    add_executable(diff-solver main.cpp)
+    target_link_libraries(diff-solver PRIVATE xayah-diffsim-projectile xayah-util-xcli)
+    if (MSVC)
+        target_link_options(diff-solver PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
+    endif ()
+    set_property(TARGET diff-solver PROPERTY CXX_MODULE_STD ON)
 endif ()
