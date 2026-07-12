@@ -51,30 +51,36 @@ set_property(TARGET xayah-solver PROPERTY CXX_MODULE_STD ON)
 
 
 # ============================================================================
-# Spring Chain Modules
+# Cloth CUDA Kernels and Modules
 # ============================================================================
-add_library(xayah-spring-chain)
+add_library(xayah-cloth-cuda-kernels STATIC cloth/kernels.cu)
+target_include_directories(xayah-cloth-cuda-kernels PRIVATE cloth)
+target_link_libraries(xayah-cloth-cuda-kernels PRIVATE CUDA::cudart)
+
+add_library(xayah-cloth)
 target_sources(
-        xayah-spring-chain
+        xayah-cloth
         PRIVATE
-        spring_chain/data.cpp
-        spring_chain/operators.cpp
-        spring_chain/model.cpp
+        cloth/runtime.cpp
+        cloth/operators.cpp
+        cloth/model.cpp
         PUBLIC
         FILE_SET cxx_modules TYPE CXX_MODULES FILES
-        spring_chain/data.ixx
-        spring_chain/operators.ixx
-        spring_chain/model.ixx
+        cloth/runtime.ixx
+        cloth/data.ixx
+        cloth/operators.ixx
+        cloth/model.ixx
 )
-set_property(TARGET xayah-spring-chain PROPERTY CXX_MODULE_STD ON)
+target_link_libraries(xayah-cloth PUBLIC xayah-solver PRIVATE xayah-cloth-cuda-kernels CUDA::cudart)
+set_property(TARGET xayah-cloth PROPERTY CXX_MODULE_STD ON)
 
 
 # ============================================================================
-# Control Optimization Application
+# Cloth Gradient Verification and Hanging Demo
 # ============================================================================
-add_executable(diff-solver main.cpp)
-target_link_libraries(diff-solver PRIVATE xayah-solver xayah-spring-chain)
-set_property(TARGET diff-solver PROPERTY CXX_MODULE_STD ON)
+add_executable(diff-cloth cloth/main.cpp)
+target_link_libraries(diff-cloth PRIVATE xayah-solver xayah-cloth CUDA::cudart)
+set_property(TARGET diff-cloth PROPERTY CXX_MODULE_STD ON)
 if (MSVC)
-    target_link_options(diff-solver PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
+    target_link_options(diff-cloth PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
 endif ()

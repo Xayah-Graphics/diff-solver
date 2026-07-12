@@ -1,0 +1,142 @@
+export module xayah.cloth.data;
+
+import std;
+import xayah.cloth.runtime;
+
+export namespace xayah::cloth {
+
+    struct Vector3 {
+        float x;
+        float y;
+        float z;
+    };
+
+    struct Triangle {
+        std::uint32_t first;
+        std::uint32_t second;
+        std::uint32_t third;
+    };
+
+    struct Spring {
+        std::uint32_t first;
+        std::uint32_t second;
+        float rest_length;
+    };
+
+    struct Configuration {
+        std::vector<Vector3> rest_positions;
+        std::vector<Triangle> triangles;
+        std::vector<std::optional<Vector3>> anchors;
+        Vector3 gravity;
+        float time_step;
+    };
+
+    struct Topology {
+        std::vector<Spring> stretch_springs;
+        std::vector<Spring> bending_springs;
+        std::vector<std::uint32_t> stretch_offsets;
+        std::vector<std::uint32_t> stretch_indices;
+        std::vector<std::uint32_t> stretch_others;
+        std::vector<float> stretch_signs;
+        std::vector<std::uint32_t> bending_offsets;
+        std::vector<std::uint32_t> bending_indices;
+        std::vector<std::uint32_t> bending_others;
+        std::vector<float> bending_signs;
+    };
+
+    struct VectorField {
+        Buffer<float> x;
+        Buffer<float> y;
+        Buffer<float> z;
+    };
+
+    struct State {
+        VectorField positions;
+        VectorField velocities;
+    };
+
+    struct Control {
+        VectorField external_forces;
+    };
+
+    struct Parameters {
+        Buffer<float> masses;
+        Buffer<float> stretch_stiffnesses;
+        Buffer<float> stretch_dampings;
+        Buffer<float> stretch_rest_lengths;
+        Buffer<float> bending_stiffnesses;
+        Buffer<float> bending_dampings;
+        Buffer<float> bending_rest_lengths;
+    };
+
+    struct Forces {
+        VectorField values;
+    };
+
+    struct StateTangent {
+        VectorField positions;
+        VectorField velocities;
+    };
+
+    struct ControlTangent {
+        VectorField external_forces;
+    };
+
+    struct ParameterTangent {
+        Buffer<float> masses;
+        Buffer<float> stretch_stiffnesses;
+        Buffer<float> stretch_dampings;
+        Buffer<float> stretch_rest_lengths;
+        Buffer<float> bending_stiffnesses;
+        Buffer<float> bending_dampings;
+        Buffer<float> bending_rest_lengths;
+    };
+
+    struct ForceTangent {
+        VectorField values;
+    };
+
+    struct StateAdjoint {
+        VectorField positions;
+        VectorField velocities;
+    };
+
+    struct ControlAdjoint {
+        VectorField external_forces;
+    };
+
+    struct ParameterAdjoint {
+        Buffer<float> masses;
+        Buffer<float> stretch_stiffnesses;
+        Buffer<float> stretch_dampings;
+        Buffer<float> stretch_rest_lengths;
+        Buffer<float> bending_stiffnesses;
+        Buffer<float> bending_dampings;
+        Buffer<float> bending_rest_lengths;
+    };
+
+    struct ForceAdjoint {
+        VectorField values;
+    };
+
+    struct StepCache {
+        Forces forces;
+    };
+
+    struct DeviceSpringTopology {
+        Buffer<std::uint32_t> first;
+        Buffer<std::uint32_t> second;
+        Buffer<std::uint32_t> offsets;
+        Buffer<std::uint32_t> indices;
+        Buffer<std::uint32_t> others;
+        Buffer<float> signs;
+    };
+
+    struct DeviceTopology {
+        DeviceSpringTopology stretch;
+        DeviceSpringTopology bending;
+        Buffer<std::uint32_t> anchor_mask;
+        VectorField anchor_positions;
+    };
+
+} // namespace xayah::cloth
