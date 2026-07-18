@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 4.4.0)
 set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "f35a9ac6-8463-4d38-8eec-5d6008153e7d")
 project(diff-solver VERSION 1.0.0 LANGUAGES CXX CUDA)
 
-option(DIFF_SOLVER_BUILD_PROJECT_PLUGIN "Build the Spectra Cloth project plugin" ON)
+option(DIFF_SOLVER_BUILD_SPECTRA_PLUGINS "Build the Spectra example plugins" ON)
 
 # ============================================================================
 # C++ Configuration
@@ -78,35 +78,56 @@ set_property(TARGET xayah-cloth PROPERTY CXX_MODULE_STD ON)
 
 
 # ============================================================================
-# Cloth Gradient Verification and Hanging Demo
+# Cloth Stretch-Stiffness Inverse Example
 # ============================================================================
-add_executable(diff-cloth cloth/main.cpp)
-target_link_libraries(diff-cloth PRIVATE xayah-solver xayah-cloth CUDA::cudart)
-set_property(TARGET diff-cloth PROPERTY CXX_MODULE_STD ON)
+set(STRETCH_STIFFNESS_INVERSE_DIR examples/cloth/stretch_stiffness_inverse)
+
+add_library(xayah-example-cloth-stretch-stiffness-inverse-cuda STATIC ${STRETCH_STIFFNESS_INVERSE_DIR}/task.cu)
+target_include_directories(xayah-example-cloth-stretch-stiffness-inverse-cuda PRIVATE ${STRETCH_STIFFNESS_INVERSE_DIR})
+target_link_libraries(xayah-example-cloth-stretch-stiffness-inverse-cuda PRIVATE CUDA::cudart)
+
+add_library(xayah-example-cloth-stretch-stiffness-inverse)
+target_sources(
+        xayah-example-cloth-stretch-stiffness-inverse
+        PRIVATE
+        ${STRETCH_STIFFNESS_INVERSE_DIR}/task.cpp
+        PUBLIC
+        FILE_SET cxx_modules TYPE CXX_MODULES FILES
+        ${STRETCH_STIFFNESS_INVERSE_DIR}/task.ixx
+)
+target_link_libraries(xayah-example-cloth-stretch-stiffness-inverse PUBLIC xayah-cloth PRIVATE xayah-example-cloth-stretch-stiffness-inverse-cuda CUDA::cudart)
+set_property(TARGET xayah-example-cloth-stretch-stiffness-inverse PROPERTY CXX_MODULE_STD ON)
+
+add_executable(diff-cloth-stretch-stiffness-inverse ${STRETCH_STIFFNESS_INVERSE_DIR}/main.cpp)
+target_link_libraries(diff-cloth-stretch-stiffness-inverse PRIVATE xayah-example-cloth-stretch-stiffness-inverse CUDA::cudart)
+set_property(TARGET diff-cloth-stretch-stiffness-inverse PROPERTY CXX_MODULE_STD ON)
 if (MSVC)
-    target_link_options(diff-cloth PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
+    target_link_options(diff-cloth-stretch-stiffness-inverse PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
 endif ()
 
 
 # ============================================================================
-# Spectra Cloth Project Plugin
+# Spectra Plugin Adapter
 # ============================================================================
-if (DIFF_SOLVER_BUILD_PROJECT_PLUGIN)
-    add_library(xayah-cloth-visualization-cuda STATIC cloth/cloth.visualization.cu)
-    target_include_directories(xayah-cloth-visualization-cuda PRIVATE cloth)
-    target_link_libraries(xayah-cloth-visualization-cuda PRIVATE CUDA::cudart)
-
-    add_library(cloth_project_plugin SHARED cloth/cloth.project.cpp)
+if (DIFF_SOLVER_BUILD_SPECTRA_PLUGINS)
+    add_library(xayah-spectra-plugin)
     target_sources(
-            cloth_project_plugin
-            PRIVATE
+            xayah-spectra-plugin
+            PUBLIC
             FILE_SET cxx_modules TYPE CXX_MODULES FILES
-            cloth/cloth.plugin.ixx
-            cloth/cloth.project.ixx
+            plugin.ixx
     )
-    target_link_libraries(cloth_project_plugin PRIVATE xayah-cloth xayah-cloth-visualization-cuda CUDA::cudart)
-    set_property(TARGET cloth_project_plugin PROPERTY CXX_MODULE_STD ON)
+    set_property(TARGET xayah-spectra-plugin PROPERTY CXX_MODULE_STD ON)
+
+    # Cloth Stretch-Stiffness Inverse Example Plugin
+    add_library(xayah-example-cloth-stretch-stiffness-inverse-spectra-cuda STATIC ${STRETCH_STIFFNESS_INVERSE_DIR}/project.cu)
+    target_include_directories(xayah-example-cloth-stretch-stiffness-inverse-spectra-cuda PRIVATE ${STRETCH_STIFFNESS_INVERSE_DIR})
+    target_link_libraries(xayah-example-cloth-stretch-stiffness-inverse-spectra-cuda PRIVATE CUDA::cudart)
+
+    add_library(cloth-stretch-stiffness-inverse-plugin SHARED ${STRETCH_STIFFNESS_INVERSE_DIR}/project.cpp)
+    target_link_libraries(cloth-stretch-stiffness-inverse-plugin PRIVATE xayah-spectra-plugin xayah-example-cloth-stretch-stiffness-inverse xayah-example-cloth-stretch-stiffness-inverse-spectra-cuda CUDA::cudart)
+    set_property(TARGET cloth-stretch-stiffness-inverse-plugin PROPERTY CXX_MODULE_STD ON)
     if (MSVC)
-        target_link_options(cloth_project_plugin PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
+        target_link_options(cloth-stretch-stiffness-inverse-plugin PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
     endif ()
 endif ()
