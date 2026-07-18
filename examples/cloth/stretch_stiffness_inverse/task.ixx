@@ -32,30 +32,40 @@ export namespace xayah::cloth::examples::stretch_stiffness_inverse {
         double vjp_inner_product;
     };
 
-    class StretchStiffnessInverseTask final {
-    public:
-        struct State;
+    struct StretchStiffnessInverseTask final {
+        StretchStiffnessInverseOptions options;
+        Model model;
+        ExecutionContext context;
+        xayah::solver::Trajectory<::xayah::cloth::State, StepCache> target_trajectory;
+        xayah::solver::Trajectory<::xayah::cloth::State, StepCache> estimated_trajectory;
+        StretchStiffnessInverseMetrics metrics;
 
         explicit StretchStiffnessInverseTask(Configuration configuration, StretchStiffnessInverseOptions options = {});
         StretchStiffnessInverseTask(const StretchStiffnessInverseTask&) = delete;
-        StretchStiffnessInverseTask(StretchStiffnessInverseTask&&) noexcept;
+        StretchStiffnessInverseTask(StretchStiffnessInverseTask&&) = delete;
         StretchStiffnessInverseTask& operator=(const StretchStiffnessInverseTask&) = delete;
-        StretchStiffnessInverseTask& operator=(StretchStiffnessInverseTask&&) noexcept;
+        StretchStiffnessInverseTask& operator=(StretchStiffnessInverseTask&&) = delete;
         ~StretchStiffnessInverseTask() noexcept;
 
         void reset();
         void optimize_step();
         [[nodiscard]] StretchStiffnessGradientCheck check_gradient(xayah::solver::TapeMode tape_mode, float epsilon);
-        [[nodiscard]] const StretchStiffnessInverseOptions& options() const;
-        [[nodiscard]] const StretchStiffnessInverseMetrics& metrics() const;
-        [[nodiscard]] const Model& model() const;
-        [[nodiscard]] ExecutionContext& context();
-        [[nodiscard]] std::size_t trajectory_state_count() const;
-        [[nodiscard]] const ::xayah::cloth::State& target_state(std::size_t step) const;
-        [[nodiscard]] const ::xayah::cloth::State& estimated_state(std::size_t step) const;
 
     private:
-        std::unique_ptr<State> state_;
+        void upload_parameters(Parameters& parameters, float stretch_stiffness);
+        [[nodiscard]] double trajectory_loss(const xayah::solver::Trajectory<::xayah::cloth::State, StepCache>& trajectory);
+        void evaluate(xayah::solver::TapeMode tape_mode);
+        [[nodiscard]] double loss_at_log_stiffness(double log_stiffness, xayah::solver::TapeMode tape_mode);
+
+        ::xayah::cloth::State initial_state_;
+        std::vector<Control> controls_;
+        Parameters estimated_parameters_;
+        xayah::solver::TrajectoryAdjoint<StateAdjoint> trajectory_adjoint_;
+        double* scalar_;
+        double log_stiffness_;
+        double first_moment_;
+        double second_moment_;
+        std::size_t adam_step_;
     };
 
 } // namespace xayah::cloth::examples::stretch_stiffness_inverse

@@ -99,7 +99,7 @@ target_link_libraries(xayah-example-cloth-stretch-stiffness-inverse PUBLIC xayah
 set_property(TARGET xayah-example-cloth-stretch-stiffness-inverse PROPERTY CXX_MODULE_STD ON)
 
 add_executable(diff-cloth-stretch-stiffness-inverse ${STRETCH_STIFFNESS_INVERSE_DIR}/main.cpp)
-target_link_libraries(diff-cloth-stretch-stiffness-inverse PRIVATE xayah-example-cloth-stretch-stiffness-inverse CUDA::cudart)
+target_link_libraries(diff-cloth-stretch-stiffness-inverse PRIVATE xayah-example-cloth-stretch-stiffness-inverse)
 set_property(TARGET diff-cloth-stretch-stiffness-inverse PROPERTY CXX_MODULE_STD ON)
 if (MSVC)
     target_link_options(diff-cloth-stretch-stiffness-inverse PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
@@ -128,7 +128,7 @@ target_link_libraries(xayah-example-cloth-wind-trajectory-optimization PUBLIC xa
 set_property(TARGET xayah-example-cloth-wind-trajectory-optimization PROPERTY CXX_MODULE_STD ON)
 
 add_executable(diff-cloth-wind-trajectory-optimization ${WIND_TRAJECTORY_OPTIMIZATION_DIR}/main.cpp)
-target_link_libraries(diff-cloth-wind-trajectory-optimization PRIVATE xayah-example-cloth-wind-trajectory-optimization CUDA::cudart)
+target_link_libraries(diff-cloth-wind-trajectory-optimization PRIVATE xayah-example-cloth-wind-trajectory-optimization)
 set_property(TARGET diff-cloth-wind-trajectory-optimization PROPERTY CXX_MODULE_STD ON)
 if (MSVC)
     target_link_options(diff-cloth-wind-trajectory-optimization PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")

@@ -32,34 +32,50 @@ export namespace xayah::cloth::examples::wind_trajectory_optimization {
         double vjp_inner_product;
     };
 
-    class WindTrajectoryOptimizationTask final {
-    public:
-        struct State;
+    struct WindTrajectoryOptimizationTask final {
+        WindTrajectoryOptimizationOptions options;
+        Model model;
+        ExecutionContext context;
+        xayah::solver::Trajectory<::xayah::cloth::State, StepCache> target_trajectory;
+        xayah::solver::Trajectory<::xayah::cloth::State, StepCache> estimated_trajectory;
+        std::vector<Vector3> target_keyframes;
+        std::vector<Vector3> estimated_keyframes;
+        WindTrajectoryOptimizationMetrics metrics;
 
         explicit WindTrajectoryOptimizationTask(Configuration configuration, WindTrajectoryOptimizationOptions options = {});
         WindTrajectoryOptimizationTask(const WindTrajectoryOptimizationTask&) = delete;
-        WindTrajectoryOptimizationTask(WindTrajectoryOptimizationTask&&) noexcept;
+        WindTrajectoryOptimizationTask(WindTrajectoryOptimizationTask&&) = delete;
         WindTrajectoryOptimizationTask& operator=(const WindTrajectoryOptimizationTask&) = delete;
-        WindTrajectoryOptimizationTask& operator=(WindTrajectoryOptimizationTask&&) noexcept;
+        WindTrajectoryOptimizationTask& operator=(WindTrajectoryOptimizationTask&&) = delete;
         ~WindTrajectoryOptimizationTask() noexcept;
 
         void reset();
         void optimize_step();
         [[nodiscard]] WindTrajectoryGradientCheck check_gradient(xayah::solver::TapeMode tape_mode, float epsilon);
-        [[nodiscard]] const WindTrajectoryOptimizationOptions& options() const;
-        [[nodiscard]] const WindTrajectoryOptimizationMetrics& metrics() const;
-        [[nodiscard]] const Model& model() const;
-        [[nodiscard]] ExecutionContext& context();
-        [[nodiscard]] std::size_t trajectory_state_count() const;
-        [[nodiscard]] const ::xayah::cloth::State& target_state(std::size_t step) const;
-        [[nodiscard]] const ::xayah::cloth::State& estimated_state(std::size_t step) const;
-        [[nodiscard]] std::span<const Vector3> target_wind_keyframes() const;
-        [[nodiscard]] std::span<const Vector3> estimated_wind_keyframes() const;
-        [[nodiscard]] Vector3 target_wind(std::size_t control_step) const;
-        [[nodiscard]] Vector3 estimated_wind(std::size_t control_step) const;
 
     private:
-        std::unique_ptr<State> state_;
+        static constexpr std::size_t keyframe_count = 6u;
+        static constexpr std::size_t variable_count = 2u * keyframe_count;
+
+        void upload_parameters();
+        void upload_keyframes(std::span<const Vector3> keyframes);
+        void write_controls(std::vector<Control>& controls, std::span<const Vector3> keyframes);
+        [[nodiscard]] double trajectory_loss(const xayah::solver::Trajectory<::xayah::cloth::State, StepCache>& trajectory);
+        void evaluate(xayah::solver::TapeMode tape_mode);
+        [[nodiscard]] double loss_at_keyframes(std::span<const Vector3> keyframes, xayah::solver::TapeMode tape_mode);
+
+        ::xayah::cloth::State initial_state_;
+        std::vector<Control> estimated_controls_;
+        std::vector<Control> probe_controls_;
+        Parameters parameters_;
+        xayah::solver::TrajectoryAdjoint<StateAdjoint> trajectory_adjoint_;
+        std::array<double, variable_count> keyframe_gradients_;
+        std::array<double, variable_count> first_moments_;
+        std::array<double, variable_count> second_moments_;
+        float* device_keyframes_;
+        double* device_keyframe_gradients_;
+        double* scalar_;
+        std::size_t adam_step_;
     };
 
 } // namespace xayah::cloth::examples::wind_trajectory_optimization

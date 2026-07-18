@@ -72,14 +72,14 @@ int main() {
     if (tape_difference > tape_tolerance) throw std::runtime_error("inverse tape consistency check failed");
 
     std::println("\nCUDA cloth stretch-stiffness inversion");
-    std::println("  iteration {:3}: stiffness={:.6f}, loss={:.9e}, loss_ratio={:.3e}, gradient={:.9e}", task.metrics().iteration, task.metrics().stretch_stiffness, task.metrics().loss, 1.0, task.metrics().log_stiffness_gradient);
+    std::println("  iteration {:3}: stiffness={:.6f}, loss={:.9e}, loss_ratio={:.3e}, gradient={:.9e}", task.metrics.iteration, task.metrics.stretch_stiffness, task.metrics.loss, 1.0, task.metrics.log_stiffness_gradient);
     for (std::size_t iteration = 0u; iteration < optimization_iterations; ++iteration) {
         task.optimize_step();
-        if (task.metrics().iteration % 10u == 0u)
-            std::println("  iteration {:3}: stiffness={:.6f}, loss={:.9e}, loss_ratio={:.3e}, gradient={:.9e}", task.metrics().iteration, task.metrics().stretch_stiffness, task.metrics().loss, task.metrics().loss / task.metrics().initial_loss, task.metrics().log_stiffness_gradient);
+        if (task.metrics.iteration % 10u == 0u)
+            std::println("  iteration {:3}: stiffness={:.6f}, loss={:.9e}, loss_ratio={:.3e}, gradient={:.9e}", task.metrics.iteration, task.metrics.stretch_stiffness, task.metrics.loss, task.metrics.loss / task.metrics.initial_loss, task.metrics.log_stiffness_gradient);
     }
-    const double stiffness_error = std::abs(static_cast<double>(task.metrics().stretch_stiffness) - task.options().target_stretch_stiffness) / task.options().target_stretch_stiffness;
-    const double loss_ratio      = task.metrics().loss / task.metrics().initial_loss;
+    const double stiffness_error = std::abs(static_cast<double>(task.metrics.stretch_stiffness) - task.options.target_stretch_stiffness) / task.options.target_stretch_stiffness;
+    const double loss_ratio      = task.metrics.loss / task.metrics.initial_loss;
     std::println("  relative_stiffness_error={:.3e}, final/initial_loss={:.3e}", stiffness_error, loss_ratio);
     if (stiffness_error > 1.0e-2) throw std::runtime_error("stretch-stiffness recovery check failed");
     if (loss_ratio > 1.0e-4) throw std::runtime_error("stretch-stiffness loss reduction check failed");

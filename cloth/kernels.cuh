@@ -1,7 +1,6 @@
 #ifndef XAYAH_CLOTH_KERNELS_CUH
 #define XAYAH_CLOTH_KERNELS_CUH
 
-#include <cstddef>
 #include <cstdint>
 
 namespace xayah::cloth::cuda_kernel {

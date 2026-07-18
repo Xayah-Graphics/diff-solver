@@ -72,17 +72,17 @@ int main() {
     if (tape_difference > tape_tolerance) throw std::runtime_error("wind tape consistency check failed");
 
     std::println("\nCUDA cloth wind-trajectory optimization");
-    std::println("  iteration {:3}: loss={:.9e}, loss_ratio={:.3e}, keyframe_error={:.3e}, gradient_norm={:.9e}", task.metrics().iteration, task.metrics().loss, task.metrics().loss_ratio, task.metrics().keyframe_relative_error, task.metrics().gradient_norm);
+    std::println("  iteration {:3}: loss={:.9e}, loss_ratio={:.3e}, keyframe_error={:.3e}, gradient_norm={:.9e}", task.metrics.iteration, task.metrics.loss, task.metrics.loss_ratio, task.metrics.keyframe_relative_error, task.metrics.gradient_norm);
     for (std::size_t iteration = 0u; iteration < optimization_iterations; ++iteration) {
         task.optimize_step();
-        if (task.metrics().iteration % 10u == 0u)
-            std::println("  iteration {:3}: loss={:.9e}, loss_ratio={:.3e}, keyframe_error={:.3e}, gradient_norm={:.9e}", task.metrics().iteration, task.metrics().loss, task.metrics().loss_ratio, task.metrics().keyframe_relative_error, task.metrics().gradient_norm);
+        if (task.metrics.iteration % 10u == 0u)
+            std::println("  iteration {:3}: loss={:.9e}, loss_ratio={:.3e}, keyframe_error={:.3e}, gradient_norm={:.9e}", task.metrics.iteration, task.metrics.loss, task.metrics.loss_ratio, task.metrics.keyframe_relative_error, task.metrics.gradient_norm);
     }
-    std::println("  final keyframe_relative_error={:.3e}, final/initial_loss={:.3e}", task.metrics().keyframe_relative_error, task.metrics().loss_ratio);
-    for (std::size_t keyframe = 0; keyframe < task.target_wind_keyframes().size(); ++keyframe)
-        std::println("  keyframe {}: target=({:+.6f}, {:+.6f}), estimate=({:+.6f}, {:+.6f})", keyframe, task.target_wind_keyframes()[keyframe].x, task.target_wind_keyframes()[keyframe].z, task.estimated_wind_keyframes()[keyframe].x, task.estimated_wind_keyframes()[keyframe].z);
+    std::println("  final keyframe_relative_error={:.3e}, final/initial_loss={:.3e}", task.metrics.keyframe_relative_error, task.metrics.loss_ratio);
+    for (std::size_t keyframe = 0; keyframe < task.target_keyframes.size(); ++keyframe)
+        std::println("  keyframe {}: target=({:+.6f}, {:+.6f}), estimate=({:+.6f}, {:+.6f})", keyframe, task.target_keyframes[keyframe].x, task.target_keyframes[keyframe].z, task.estimated_keyframes[keyframe].x, task.estimated_keyframes[keyframe].z);
     std::cout.flush();
-    if (task.metrics().keyframe_relative_error > 1.0e-2) throw std::runtime_error("wind keyframe recovery check failed");
-    if (task.metrics().loss_ratio > 1.0e-4) throw std::runtime_error("wind trajectory loss reduction check failed");
+    if (task.metrics.keyframe_relative_error > 1.0e-2) throw std::runtime_error("wind keyframe recovery check failed");
+    if (task.metrics.loss_ratio > 1.0e-4) throw std::runtime_error("wind trajectory loss reduction check failed");
     return 0;
 }

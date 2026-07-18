@@ -1,11 +1,3 @@
-module;
-
-#if defined(_WIN32)
-#include <windows.h>
-#else
-#include <unistd.h>
-#endif
-
 export module xayah.spectra.plugin;
 
 import std;
@@ -17,14 +9,6 @@ export namespace xayah::spectra::plugin {
         OpaqueFileDescriptor = 1u,
     };
 
-    struct GpuDeviceIdentity {
-        std::uint32_t vendor_id{};
-        std::uint32_t device_id{};
-        std::array<std::uint8_t, 16u> device_uuid{};
-        std::array<std::uint8_t, 8u> device_luid{};
-        std::uint32_t device_node_mask{};
-    };
-
     struct GpuBufferSlotAllocation {
         GpuResourceHandleKind handle_kind{GpuResourceHandleKind::OpaqueWin32};
         std::uintptr_t handle{};
@@ -33,9 +17,7 @@ export namespace xayah::spectra::plugin {
     struct GpuBufferAllocation {
         std::uint64_t resource_id{};
         std::uint64_t byte_size{};
-        std::uint32_t kind{};
         std::vector<GpuBufferSlotAllocation> slots{};
-        GpuDeviceIdentity device_identity{};
     };
 
     inline constexpr std::uint32_t GpuBufferKindViewportSegmentSet = 3u;
@@ -161,8 +143,6 @@ export namespace xayah::spectra::plugin {
         std::string label{};
         std::string value{};
         std::string section_id{};
-        bool primary{};
-        std::array<float, 4u> color{1.0F, 1.0F, 1.0F, 1.0F};
     };
 
     struct SettingState {
@@ -264,35 +244,35 @@ export namespace xayah::spectra::plugin {
         return OptionSchema{.key = std::move(key), .label = std::move(label), .kind = OptionKind::Float, .default_value = std::format("{}", default_value), .section_id = std::move(section_id)};
     }
 
-    template <typename Project>
-    ActionBinding<Project> action(std::string id, std::string label, std::string description, std::string section_id, void (Project::*invoke)()) {
+    template <typename Project, std::invocable<Project&> Invoke>
+    ActionBinding<Project> action(std::string id, std::string label, std::string description, std::string section_id, Invoke invoke) {
         return ActionBinding<Project>{
             .schema = Action{.id = std::move(id), .label = std::move(label), .description = std::move(description), .section_id = std::move(section_id)},
-            .invoke = [invoke](Project& project) { (project.*invoke)(); },
+            .invoke = std::move(invoke),
         };
     }
 
-    template <typename Project>
-    SettingBinding<Project> toggle(std::string key, std::string label, const bool default_value, std::string section_id, void (Project::*update)(bool)) {
+    template <typename Project, std::invocable<Project&, bool> Update>
+    SettingBinding<Project> toggle(std::string key, std::string label, const bool default_value, std::string section_id, Update update) {
         return SettingBinding<Project>{
             .schema = OptionSchema{.key = std::move(key), .label = std::move(label), .kind = OptionKind::Bool, .default_value = default_value ? "true" : "false", .section_id = std::move(section_id)},
-            .update = [update](Project& project, const std::string_view value) { (project.*update)(value == "true"); },
+            .update = [update = std::move(update)](Project& project, const std::string_view value) { std::invoke(update, project, value == "true"); },
         };
     }
 
-    template <typename Project>
-    SettingBinding<Project> float_setting(std::string key, std::string label, const float default_value, std::string section_id, const float minimum, const float maximum, const float step, void (Project::*update)(float)) {
+    template <typename Project, std::invocable<Project&, float> Update>
+    SettingBinding<Project> float_setting(std::string key, std::string label, const float default_value, std::string section_id, const float minimum, const float maximum, const float step, Update update) {
         return SettingBinding<Project>{
             .schema = OptionSchema{.key = std::move(key), .label = std::move(label), .kind = OptionKind::Float, .default_value = std::format("{}", default_value), .section_id = std::move(section_id), .slider = true, .numeric_min = minimum, .numeric_max = maximum, .numeric_step = step},
-            .update = [update](Project& project, const std::string_view value) { (project.*update)(std::stof(std::string{value})); },
+            .update = [update = std::move(update)](Project& project, const std::string_view value) { std::invoke(update, project, std::stof(std::string{value})); },
         };
     }
 
-    template <typename Project>
-    SettingBinding<Project> unsigned_integer_setting(std::string key, std::string label, const std::uint64_t default_value, std::string section_id, const std::uint64_t minimum, const std::uint64_t maximum, const std::uint64_t step, void (Project::*update)(std::uint64_t)) {
+    template <typename Project, std::invocable<Project&, std::uint64_t> Update>
+    SettingBinding<Project> unsigned_integer_setting(std::string key, std::string label, const std::uint64_t default_value, std::string section_id, const std::uint64_t minimum, const std::uint64_t maximum, const std::uint64_t step, Update update) {
         return SettingBinding<Project>{
             .schema = OptionSchema{.key = std::move(key), .label = std::move(label), .kind = OptionKind::UnsignedInteger, .default_value = std::to_string(default_value), .section_id = std::move(section_id), .slider = true, .unsigned_min = minimum, .unsigned_max = maximum, .unsigned_step = step},
-            .update = [update](Project& project, const std::string_view value) { (project.*update)(std::stoull(std::string{value})); },
+            .update = [update = std::move(update)](Project& project, const std::string_view value) { std::invoke(update, project, std::stoull(std::string{value})); },
         };
     }
 
@@ -669,13 +649,6 @@ namespace xayah::spectra::plugin {
             };
         }
 
-        static GpuDeviceIdentity device_identity(const SpectraSceneGpuDeviceIdentity& source) {
-            GpuDeviceIdentity identity{.vendor_id = source.vendor_id, .device_id = source.device_id, .device_node_mask = source.device_node_mask};
-            std::ranges::copy(source.device_uuid, identity.device_uuid.begin());
-            std::ranges::copy(source.device_luid, identity.device_luid.begin());
-            return identity;
-        }
-
         static SpectraSceneTransform transform() {
             SpectraSceneTransform value{};
             value.rotation[3] = 1.0F;
@@ -735,7 +708,7 @@ namespace xayah::spectra::plugin {
                     const SpectraSceneGpuBufferRequest request{.struct_size = sizeof(SpectraSceneGpuBufferRequest), .kind = kind, .byte_size = byte_size};
                     SpectraSceneGpuBufferAllocation allocation{};
                     if (raw_host->request_gpu_buffer(raw_host->user_data, &request, &allocation) != ResultOk) throw std::runtime_error(raw_host->last_error(raw_host->user_data));
-                    GpuBufferAllocation decoded{.resource_id = allocation.resource_id, .byte_size = allocation.byte_size, .kind = kind, .device_identity = device_identity(allocation.device_identity)};
+                    GpuBufferAllocation decoded{.resource_id = allocation.resource_id, .byte_size = allocation.byte_size};
                     decoded.slots.reserve(allocation.slots.count);
                     for (std::uint64_t index = 0u; index < allocation.slots.count; ++index) decoded.slots.push_back({.handle_kind = static_cast<GpuResourceHandleKind>(allocation.slots.data[index].handle_kind), .handle = allocation.slots.data[index].handle});
                     return decoded;
@@ -809,7 +782,7 @@ namespace xayah::spectra::plugin {
 
         static SpectraSceneResult revision(SpectraSceneInstance* value, std::uint64_t* output) noexcept {
             try {
-                *output = instance(value).project.revision();
+                *output = instance(value).project.revision;
                 return ResultOk;
             } catch (const std::exception& error) {
                 instance(value).error = error.what();
@@ -852,7 +825,7 @@ namespace xayah::spectra::plugin {
                 current.controls.metrics.clear();
                 current.controls.actions.clear();
                 current.controls.settings.clear();
-                for (const Metric& metric : current.controls.state.metrics) current.controls.metrics.push_back(SpectraSceneControlMetric{.key = metric.key.c_str(), .label = metric.label.c_str(), .value = metric.value.c_str(), .section_id = metric.section_id.c_str(), .display_flags = metric.primary ? 1u : 0u, .has_color = 1u, .color = {metric.color[0], metric.color[1], metric.color[2], metric.color[3]}});
+                for (const Metric& metric : current.controls.state.metrics) current.controls.metrics.push_back(SpectraSceneControlMetric{.key = metric.key.c_str(), .label = metric.label.c_str(), .value = metric.value.c_str(), .section_id = metric.section_id.c_str(), .display_flags = 0u, .has_color = 1u, .color = {1.0F, 1.0F, 1.0F, 1.0F}});
                 for (const std::string& action_id : current.controls.state.enabled_actions) current.controls.actions.push_back({.action_id = action_id.c_str(), .enabled = 1u, .disabled_reason = ""});
                 for (const SettingState& setting : current.controls.state.settings) current.controls.settings.push_back({.key = setting.key.c_str(), .value = setting.value.c_str(), .has_unsigned_range = setting.has_unsigned_range ? 1u : 0u, .unsigned_min = setting.unsigned_min, .unsigned_max = setting.unsigned_max, .unsigned_step = setting.unsigned_step});
                 *output = SpectraSceneControlStateView{.struct_size = sizeof(SpectraSceneControlStateView), .phase = current.controls.state.phase.c_str(), .headline = current.controls.state.headline.c_str(), .detail = current.controls.state.detail.c_str(), .metrics = RawSpan{.data = current.controls.metrics.data(), .count = current.controls.metrics.size()}, .action_states = RawSpan{.data = current.controls.actions.data(), .count = current.controls.actions.size()}, .setting_states = RawSpan{.data = current.controls.settings.data(), .count = current.controls.settings.size()}};

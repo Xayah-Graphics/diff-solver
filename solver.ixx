@@ -61,9 +61,6 @@ export namespace xayah::solver {
     };
 
     template <typename Model, typename Context, typename State, typename Control, typename Parameters>
-    concept DifferentiableModel = JvpModel<Model, Context, State, Control, Parameters> && VjpModel<Model, Context, State, Control, Parameters>;
-
-    template <typename Model, typename Context, typename State, typename Control, typename Parameters>
         requires ForwardModel<Model, Context, State, Control, Parameters>
     [[nodiscard]] auto simulate(const Model& model, Context& context, const State& initial_state, const std::span<const Control> controls, const Parameters& parameters, const TapeMode tape_mode) -> Trajectory<State, decltype(model.make_step_cache(context))> {
         Trajectory<State, decltype(model.make_step_cache(context))> trajectory{

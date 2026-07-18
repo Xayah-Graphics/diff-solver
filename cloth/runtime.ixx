@@ -4,8 +4,7 @@ import std;
 
 export namespace xayah::cloth {
 
-    class Resource {
-    public:
+    struct Resource {
         Resource();
         ~Resource() noexcept;
 
@@ -22,10 +21,9 @@ export namespace xayah::cloth {
         void zero(void* destination, std::size_t bytes);
         void synchronize();
 
-        [[nodiscard]] void* native_stream() const;
+        void* native_stream;
 
     private:
-        void* stream_;
         void* memory_pool_;
     };
 
@@ -33,8 +31,7 @@ export namespace xayah::cloth {
     concept BufferElement = std::same_as<Element, float> || std::same_as<Element, std::uint32_t>;
 
     template <BufferElement Element>
-    class Buffer {
-    public:
+    struct Buffer {
         Buffer() noexcept;
         Buffer(std::shared_ptr<Resource> resource, std::size_t size);
         ~Buffer() noexcept;
@@ -44,17 +41,14 @@ export namespace xayah::cloth {
         Buffer(Buffer&& other) noexcept;
         Buffer& operator=(Buffer&& other) noexcept;
 
-        [[nodiscard]] Element* data();
-        [[nodiscard]] const Element* data() const;
-        [[nodiscard]] std::size_t size() const;
+        Element* data;
+        std::size_t size;
 
     private:
         std::shared_ptr<Resource> resource_;
-        Element* data_;
-        std::size_t size_;
     };
 
-    extern template class Buffer<float>;
-    extern template class Buffer<std::uint32_t>;
+    extern template struct Buffer<float>;
+    extern template struct Buffer<std::uint32_t>;
 
 } // namespace xayah::cloth

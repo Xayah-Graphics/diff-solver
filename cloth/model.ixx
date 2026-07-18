@@ -7,12 +7,16 @@ import xayah.cloth.runtime;
 
 export namespace xayah::cloth {
 
-    class Model;
+    struct Model;
 
-    class ExecutionContext {
+    struct ExecutionContext {
+    private:
+        std::shared_ptr<Resource> resource_owner_;
+        ExecutionContext(const Configuration& configuration, const Topology& topology);
+
     public:
-        [[nodiscard]] Resource& resource();
-        [[nodiscard]] const DeviceTopology& device_topology() const;
+        Resource& resource;
+        DeviceTopology device_topology;
 
         void upload(std::span<const float> source, Buffer<float>& destination);
         void download(const Buffer<float>& source, std::span<float> destination);
@@ -21,8 +25,6 @@ export namespace xayah::cloth {
         void synchronize();
 
     private:
-        ExecutionContext(const Configuration& configuration, const Topology& topology);
-
         [[nodiscard]] Buffer<float> make_scalar_buffer(std::size_t size) const;
         [[nodiscard]] Buffer<std::uint32_t> make_index_buffer(std::size_t size) const;
         [[nodiscard]] VectorField make_vector_field(std::size_t size) const;
@@ -32,38 +34,33 @@ export namespace xayah::cloth {
         void copy(const VectorField& source, VectorField& destination);
         void accumulate(const VectorField& source, VectorField& destination);
 
-        std::shared_ptr<Resource> resource_;
-        DeviceTopology topology_;
         State integrated_state_;
         ForceTangent force_tangent_;
         StateTangent integrated_state_tangent_;
         ForceAdjoint force_adjoint_;
         StateAdjoint integrated_state_adjoint_;
 
-        friend class Model;
+        friend struct Model;
     };
 
-    class Model {
-    public:
+    struct Model {
+        const Configuration configuration;
+        const Topology topology;
+
         explicit Model(Configuration configuration);
 
-        [[nodiscard]] const Configuration& configuration() const;
-        [[nodiscard]] const Topology& topology() const;
         [[nodiscard]] ExecutionContext make_context() const;
 
         [[nodiscard]] State make_state(ExecutionContext& context) const;
         [[nodiscard]] Control make_control(ExecutionContext& context) const;
         [[nodiscard]] Parameters make_parameters(ExecutionContext& context) const;
-        [[nodiscard]] Forces make_forces(ExecutionContext& context) const;
         [[nodiscard]] StepCache make_step_cache(ExecutionContext& context) const;
         [[nodiscard]] StateTangent make_state_tangent(ExecutionContext& context) const;
         [[nodiscard]] ControlTangent make_control_tangent(ExecutionContext& context) const;
         [[nodiscard]] ParameterTangent make_parameter_tangent(ExecutionContext& context) const;
-        [[nodiscard]] ForceTangent make_force_tangent(ExecutionContext& context) const;
         [[nodiscard]] StateAdjoint make_state_adjoint(ExecutionContext& context) const;
         [[nodiscard]] ControlAdjoint make_control_adjoint(ExecutionContext& context) const;
         [[nodiscard]] ParameterAdjoint make_parameter_adjoint(ExecutionContext& context) const;
-        [[nodiscard]] ForceAdjoint make_force_adjoint(ExecutionContext& context) const;
 
         void copy_state(const State& source, State& destination, ExecutionContext& context) const;
         void copy_state_tangent(const StateTangent& source, StateTangent& destination, ExecutionContext& context) const;
@@ -75,8 +72,6 @@ export namespace xayah::cloth {
         void vjp_step(const State& state, const Control& control, const Parameters& parameters, const State& next_state, const StepCache& step_cache, const StateAdjoint& next_state_adjoint, StateAdjoint& previous_state_adjoint, ControlAdjoint& control_adjoint, ParameterAdjoint& parameter_adjoint, ExecutionContext& context) const;
 
     private:
-        Configuration configuration_;
-        Topology topology_;
         ForceAssemblyOperator force_assembly_;
         SemiImplicitEulerOperator semi_implicit_euler_;
         FixedConstraintOperator fixed_constraint_;

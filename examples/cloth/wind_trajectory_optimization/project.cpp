@@ -15,7 +15,6 @@ import xayah.cloth.data;
 import xayah.examples.cloth.wind_trajectory_optimization;
 import xayah.cloth.model;
 import xayah.spectra.plugin;
-import xayah.cloth.runtime;
 
 namespace xayah::cloth::examples::wind_trajectory_optimization::project {
 
@@ -51,8 +50,7 @@ namespace xayah::cloth::examples::wind_trajectory_optimization::project {
             slot.handle = 0u;
         }
 
-        class ExternalGpuBuffer final {
-        public:
+        struct ExternalGpuBuffer final {
             ExternalGpuBuffer() = default;
             ExternalGpuBuffer(const ExternalGpuBuffer&) = delete;
             ExternalGpuBuffer(ExternalGpuBuffer&&) = delete;
@@ -62,28 +60,16 @@ namespace xayah::cloth::examples::wind_trajectory_optimization::project {
 
             void create(std::shared_ptr<plugin::HostServices> host_services, std::uint64_t byte_size);
 
-            template <typename Element>
-            [[nodiscard]] Element* mapped_as(const std::uint32_t frame_slot_index) const noexcept {
-                return static_cast<Element*>(this->mapped_buffers_[frame_slot_index]);
-            }
-
-            [[nodiscard]] std::uint64_t resource_id() const noexcept;
-            [[nodiscard]] std::uint64_t byte_size() const noexcept;
-            [[nodiscard]] std::uint32_t frame_slot_count() const noexcept;
-            [[nodiscard]] std::uint64_t slot_revision(std::uint32_t frame_slot_index) const noexcept;
-            void set_slot_revision(std::uint32_t frame_slot_index, std::uint64_t revision) noexcept;
+            plugin::GpuBufferAllocation allocation{};
+            std::vector<void*> mapped_buffers{};
+            std::vector<std::uint64_t> slot_revisions{};
 
         private:
             std::shared_ptr<plugin::HostServices> host_services_{};
-            plugin::GpuBufferAllocation allocation_{};
             std::vector<cudaExternalMemory_t> external_memories_{};
-            std::vector<void*> mapped_buffers_{};
-            std::vector<std::uint64_t> slot_revisions_{};
-            std::uint64_t byte_size_{};
         };
 
-        class CudaEventTimer final {
-        public:
+        struct CudaEventTimer final {
             CudaEventTimer();
             CudaEventTimer(const CudaEventTimer&) = delete;
             CudaEventTimer(CudaEventTimer&&) = delete;
@@ -101,86 +87,66 @@ namespace xayah::cloth::examples::wind_trajectory_optimization::project {
 
         [[nodiscard]] Configuration make_configuration(const ProjectOptions& options);
         [[nodiscard]] plugin::Camera overview_camera(float width, float height);
+        [[nodiscard]] Vector3 interpolate_wind(std::span<const Vector3> keyframes, std::size_t control_step, std::size_t trajectory_steps);
 
     } // namespace
 
-    class Project final {
-    public:
-        struct State;
+    struct Project final {
+        std::uint64_t revision{1u};
 
+        Project(ProjectOptions options, Configuration configuration, std::shared_ptr<plugin::HostServices> host_services);
         Project(const Project&) = delete;
-        Project(Project&&) noexcept;
+        Project(Project&&) = delete;
         Project& operator=(const Project&) = delete;
-        Project& operator=(Project&&) noexcept;
-        ~Project() noexcept;
+        Project& operator=(Project&&) = delete;
 
         [[nodiscard]] static const plugin::PluginDefinition<Project>& plugin();
         [[nodiscard]] static Project open(plugin::OpenContext context);
 
         void update(const plugin::UpdateInfo& update);
-        [[nodiscard]] std::uint64_t revision() const;
         void write_document(plugin::SceneBuilder& scene) const;
         void write_frame(plugin::SceneBuilder& scene, plugin::FrameInfo frame) const;
         void write_controls(plugin::ControlBuilder& controls) const;
 
-        void reset_optimization();
-        void set_trajectory_frame(std::uint64_t value);
-        void set_show_target(bool value);
-        void set_show_estimate(bool value);
-        void set_show_wind(bool value);
-        void set_show_bending(bool value);
-        void set_stretch_width(float value);
-        void set_bending_width(float value);
-        void set_wind_width(float value);
-        void set_wind_scale(float value);
-        void set_strain_range(float value);
-
     private:
-        explicit Project(std::unique_ptr<State> state);
+        void write_visualization(std::uint32_t frame_slot_index);
 
-        std::unique_ptr<State> state_;
-    };
-
-    struct Project::State final {
-        State(ProjectOptions options, Configuration configuration, std::shared_ptr<plugin::HostServices> host_services);
-
-        ProjectOptions options{};
-        std::shared_ptr<plugin::HostServices> host_services{};
-        WindTrajectoryOptimizationTask task;
-        Parameters visualization_parameters;
-        ExternalGpuBuffer target_stretch_segments{};
-        ExternalGpuBuffer estimated_stretch_segments{};
-        ExternalGpuBuffer estimated_bending_segments{};
-        ExternalGpuBuffer target_wind_segments{};
-        ExternalGpuBuffer estimated_wind_segments{};
-        std::uint64_t scene_revision{1u};
-        std::uint64_t content_revision{1u};
-        float cuda_update_milliseconds{};
-        std::uint32_t current_frame_slot{};
-        std::uint32_t trajectory_step;
-        bool update_running{};
-        bool reset_pending{};
-        bool show_target{true};
-        bool show_estimate{true};
-        bool show_wind{true};
-        bool show_bending{};
-        float stretch_width{2.0F};
-        float bending_width{1.0F};
-        float wind_width{3.0F};
-        float wind_scale{2.0F};
-        float strain_range{0.10F};
+        ProjectOptions options_{};
+        WindTrajectoryOptimizationTask task_;
+        Parameters visualization_parameters_;
+        ExternalGpuBuffer target_stretch_segments_{};
+        ExternalGpuBuffer estimated_stretch_segments_{};
+        ExternalGpuBuffer estimated_bending_segments_{};
+        ExternalGpuBuffer target_wind_segments_{};
+        ExternalGpuBuffer estimated_wind_segments_{};
+        std::uint64_t content_revision_{1u};
+        CudaEventTimer cuda_timer_{};
+        float cuda_update_milliseconds_{};
+        std::uint32_t current_frame_slot_{};
+        std::uint32_t trajectory_step_;
+        bool update_running_{};
+        bool reset_pending_{};
+        bool show_target_{true};
+        bool show_estimate_{true};
+        bool show_wind_{true};
+        bool show_bending_{};
+        float stretch_width_{2.0F};
+        float bending_width_{1.0F};
+        float wind_width_{3.0F};
+        float wind_scale_{2.0F};
+        float strain_range_{0.10F};
     };
 
     namespace {
 
         ExternalGpuBuffer::~ExternalGpuBuffer() noexcept {
-            for (void* const mapped_buffer : this->mapped_buffers_)
+            for (void* const mapped_buffer : this->mapped_buffers)
                 if (mapped_buffer != nullptr && cudaFree(mapped_buffer) != cudaSuccess) std::terminate();
             for (const cudaExternalMemory_t external_memory : this->external_memories_)
                 if (external_memory != nullptr && cudaDestroyExternalMemory(external_memory) != cudaSuccess) std::terminate();
-            if (this->allocation_.resource_id != 0u) {
+            if (this->allocation.resource_id != 0u) {
                 try {
-                    this->host_services_->release_gpu_buffer(this->allocation_.resource_id);
+                    this->host_services_->release_gpu_buffer(this->allocation.resource_id);
                 } catch (...) {
                     std::terminate();
                 }
@@ -235,31 +201,10 @@ namespace xayah::cloth::examples::wind_trajectory_optimization::project {
                 throw;
             }
             this->host_services_ = std::move(host_services);
-            this->allocation_ = std::move(allocation);
+            this->allocation = std::move(allocation);
             this->external_memories_ = std::move(external_memories);
-            this->mapped_buffers_ = std::move(mapped_buffers);
-            this->slot_revisions_.assign(this->mapped_buffers_.size(), 0u);
-            this->byte_size_ = byte_size;
-        }
-
-        std::uint64_t ExternalGpuBuffer::resource_id() const noexcept {
-            return this->allocation_.resource_id;
-        }
-
-        std::uint64_t ExternalGpuBuffer::byte_size() const noexcept {
-            return this->byte_size_;
-        }
-
-        std::uint32_t ExternalGpuBuffer::frame_slot_count() const noexcept {
-            return static_cast<std::uint32_t>(this->mapped_buffers_.size());
-        }
-
-        std::uint64_t ExternalGpuBuffer::slot_revision(const std::uint32_t frame_slot_index) const noexcept {
-            return this->slot_revisions_[frame_slot_index];
-        }
-
-        void ExternalGpuBuffer::set_slot_revision(const std::uint32_t frame_slot_index, const std::uint64_t revision) noexcept {
-            this->slot_revisions_[frame_slot_index] = revision;
+            this->mapped_buffers = std::move(mapped_buffers);
+            this->slot_revisions.assign(this->mapped_buffers.size(), 0u);
         }
 
         CudaEventTimer::CudaEventTimer() {
@@ -351,129 +296,44 @@ namespace xayah::cloth::examples::wind_trajectory_optimization::project {
             };
         }
 
-        void write_visualization(Project::State& state, const std::uint32_t frame_slot_index) {
-            ExecutionContext& context = state.task.context();
-            const Model& model = state.task.model();
-            const cudaStream_t stream = static_cast<cudaStream_t>(context.resource().native_stream());
-            const DeviceTopology& topology = context.device_topology();
-            const ::xayah::cloth::State& target_state = state.task.target_state(state.trajectory_step);
-            const ::xayah::cloth::State& estimated_state = state.task.estimated_state(state.trajectory_step);
-            const std::size_t control_step = std::min<std::size_t>(state.trajectory_step, state.options.trajectory_steps - 1u);
-            const Vector3 target_wind = state.task.target_wind(control_step);
-            const Vector3 estimated_wind = state.task.estimated_wind(control_step);
-            visualization_cuda::launch_segments(
-                stream,
-                static_cast<std::uint32_t>(model.topology().stretch_springs.size()),
-                target_state.positions.x.data(),
-                target_state.positions.y.data(),
-                target_state.positions.z.data(),
-                topology.stretch.first.data(),
-                topology.stretch.second.data(),
-                state.visualization_parameters.stretch_rest_lengths.data(),
-                1.0F,
-                state.strain_range,
-                visualization_cuda::SegmentStyle::target,
-                state.target_stretch_segments.mapped_as<void>(frame_slot_index));
-            visualization_cuda::launch_segments(
-                stream,
-                static_cast<std::uint32_t>(model.topology().stretch_springs.size()),
-                estimated_state.positions.x.data(),
-                estimated_state.positions.y.data(),
-                estimated_state.positions.z.data(),
-                topology.stretch.first.data(),
-                topology.stretch.second.data(),
-                state.visualization_parameters.stretch_rest_lengths.data(),
-                state.stretch_width,
-                state.strain_range,
-                visualization_cuda::SegmentStyle::estimate,
-                state.estimated_stretch_segments.mapped_as<void>(frame_slot_index));
-            visualization_cuda::launch_segments(
-                stream,
-                static_cast<std::uint32_t>(model.topology().bending_springs.size()),
-                estimated_state.positions.x.data(),
-                estimated_state.positions.y.data(),
-                estimated_state.positions.z.data(),
-                topology.bending.first.data(),
-                topology.bending.second.data(),
-                state.visualization_parameters.bending_rest_lengths.data(),
-                state.bending_width,
-                state.strain_range,
-                visualization_cuda::SegmentStyle::bending,
-                state.estimated_bending_segments.mapped_as<void>(frame_slot_index));
-            visualization_cuda::launch_wind_arrow(
-                stream,
-                -0.42F * state.options.width,
-                -0.12F * state.options.height,
-                0.50F * state.options.height,
-                target_wind.x,
-                target_wind.z,
-                state.wind_scale,
-                state.wind_width,
-                visualization_cuda::SegmentStyle::target_wind,
-                state.target_wind_segments.mapped_as<void>(frame_slot_index));
-            visualization_cuda::launch_wind_arrow(
-                stream,
-                -0.42F * state.options.width,
-                -0.12F * state.options.height,
-                0.50F * state.options.height,
-                estimated_wind.x,
-                estimated_wind.z,
-                state.wind_scale,
-                state.wind_width,
-                visualization_cuda::SegmentStyle::estimated_wind,
-                state.estimated_wind_segments.mapped_as<void>(frame_slot_index));
-            if (const cudaError_t status = cudaGetLastError(); status != cudaSuccess) throw std::runtime_error(std::format("cloth visualization kernel launch failed: {}", cudaGetErrorString(status)));
-            state.target_stretch_segments.set_slot_revision(frame_slot_index, state.content_revision);
-            state.estimated_stretch_segments.set_slot_revision(frame_slot_index, state.content_revision);
-            state.estimated_bending_segments.set_slot_revision(frame_slot_index, state.content_revision);
-            state.target_wind_segments.set_slot_revision(frame_slot_index, state.content_revision);
-            state.estimated_wind_segments.set_slot_revision(frame_slot_index, state.content_revision);
-        }
-
-        void write_all_visualization_slots(Project::State& state) {
-            for (std::uint32_t frame_slot = 0u; frame_slot < state.target_stretch_segments.frame_slot_count(); ++frame_slot) write_visualization(state, frame_slot);
-            state.task.context().synchronize();
-        }
-
-        void reset_task(Project::State& state) {
-            state.task.reset();
-            state.reset_pending = false;
-            ++state.content_revision;
+        Vector3 interpolate_wind(const std::span<const Vector3> keyframes, const std::size_t control_step, const std::size_t trajectory_steps) {
+            const double coordinate = static_cast<double>(control_step) * static_cast<double>(keyframes.size() - 1u) / static_cast<double>(trajectory_steps - 1u);
+            const std::size_t first = (std::min)(static_cast<std::size_t>(coordinate), keyframes.size() - 2u);
+            const std::size_t second = first + 1u;
+            const float weight = static_cast<float>(coordinate - static_cast<double>(first));
+            return {
+                .x = (1.0F - weight) * keyframes[first].x + weight * keyframes[second].x,
+                .y = 0.0F,
+                .z = (1.0F - weight) * keyframes[first].z + weight * keyframes[second].z,
+            };
         }
 
     } // namespace
 
-    Project::State::State(ProjectOptions next_options, Configuration configuration, std::shared_ptr<plugin::HostServices> next_host_services)
-        : options(next_options), host_services(std::move(next_host_services)), task(std::move(configuration), WindTrajectoryOptimizationOptions{
-              .mass = options.mass,
-              .stretch_stiffness = options.stretch_stiffness,
-              .stretch_damping = options.stretch_damping,
-              .bending_stiffness = options.bending_stiffness,
-              .bending_damping = options.bending_damping,
-              .trajectory_steps = options.trajectory_steps,
-              .adam_learning_rate = options.adam_learning_rate,
-          }), visualization_parameters(task.model().make_parameters(task.context())), trajectory_step(options.trajectory_steps) {
-        std::vector<float> stretch_rest_lengths(task.model().topology().stretch_springs.size());
-        for (std::size_t spring = 0u; spring < stretch_rest_lengths.size(); ++spring) stretch_rest_lengths[spring] = task.model().topology().stretch_springs[spring].rest_length;
-        task.context().upload(stretch_rest_lengths, visualization_parameters.stretch_rest_lengths);
-        std::vector<float> bending_rest_lengths(task.model().topology().bending_springs.size());
-        for (std::size_t spring = 0u; spring < bending_rest_lengths.size(); ++spring) bending_rest_lengths[spring] = task.model().topology().bending_springs[spring].rest_length;
-        task.context().upload(bending_rest_lengths, visualization_parameters.bending_rest_lengths);
-        target_stretch_segments.create(host_services, task.model().topology().stretch_springs.size() * segment_bytes);
-        estimated_stretch_segments.create(host_services, task.model().topology().stretch_springs.size() * segment_bytes);
-        estimated_bending_segments.create(host_services, task.model().topology().bending_springs.size() * segment_bytes);
-        target_wind_segments.create(host_services, 3u * segment_bytes);
-        estimated_wind_segments.create(host_services, 3u * segment_bytes);
-        write_all_visualization_slots(*this);
+    Project::Project(ProjectOptions options, Configuration configuration, std::shared_ptr<plugin::HostServices> host_services)
+        : options_(options), task_(std::move(configuration), WindTrajectoryOptimizationOptions{
+              .mass = options_.mass,
+              .stretch_stiffness = options_.stretch_stiffness,
+              .stretch_damping = options_.stretch_damping,
+              .bending_stiffness = options_.bending_stiffness,
+              .bending_damping = options_.bending_damping,
+              .trajectory_steps = options_.trajectory_steps,
+              .adam_learning_rate = options_.adam_learning_rate,
+          }), visualization_parameters_(task_.model.make_parameters(task_.context)), trajectory_step_(options_.trajectory_steps) {
+        std::vector<float> stretch_rest_lengths(task_.model.topology.stretch_springs.size());
+        for (std::size_t spring = 0u; spring < stretch_rest_lengths.size(); ++spring) stretch_rest_lengths[spring] = task_.model.topology.stretch_springs[spring].rest_length;
+        task_.context.upload(stretch_rest_lengths, visualization_parameters_.stretch_rest_lengths);
+        std::vector<float> bending_rest_lengths(task_.model.topology.bending_springs.size());
+        for (std::size_t spring = 0u; spring < bending_rest_lengths.size(); ++spring) bending_rest_lengths[spring] = task_.model.topology.bending_springs[spring].rest_length;
+        task_.context.upload(bending_rest_lengths, visualization_parameters_.bending_rest_lengths);
+        target_stretch_segments_.create(host_services, task_.model.topology.stretch_springs.size() * segment_bytes);
+        estimated_stretch_segments_.create(host_services, task_.model.topology.stretch_springs.size() * segment_bytes);
+        estimated_bending_segments_.create(host_services, task_.model.topology.bending_springs.size() * segment_bytes);
+        target_wind_segments_.create(host_services, 3u * segment_bytes);
+        estimated_wind_segments_.create(host_services, 3u * segment_bytes);
+        for (std::size_t frame_slot = 0u; frame_slot < target_stretch_segments_.mapped_buffers.size(); ++frame_slot) write_visualization(static_cast<std::uint32_t>(frame_slot));
+        task_.context.synchronize();
     }
-
-    Project::Project(std::unique_ptr<State> state) : state_(std::move(state)) {}
-
-    Project::Project(Project&&) noexcept = default;
-
-    Project& Project::operator=(Project&&) noexcept = default;
-
-    Project::~Project() noexcept = default;
 
     const plugin::PluginDefinition<Project>& Project::plugin() {
         static const plugin::PluginDefinition<Project> definition = [] {
@@ -498,18 +358,48 @@ namespace xayah::cloth::examples::wind_trajectory_optimization::project {
                     plugin::float_value("adam_learning_rate", "Adam Learning Rate", 0.02F, "optimization"),
                     plugin::unsigned_integer("iterations_per_update", "Iterations Per Update", 1u, "optimization"),
                 },
-                .actions = {plugin::action("reset", "Reset Optimization", "Restore zero wind keyframes and the Adam state on the next safe frame-slot update.", "optimization", &Project::reset_optimization)},
+                .actions = {plugin::action<Project>("reset", "Reset Optimization", "Restore zero wind keyframes and the Adam state on the next safe frame-slot update.", "optimization", [](Project& project) { project.reset_pending_ = true; })},
                 .settings = {
-                    plugin::unsigned_integer_setting("trajectory_frame", "Trajectory Frame", 120u, "display", 0u, 120u, 1u, &Project::set_trajectory_frame),
-                    plugin::toggle("show_target", "Show Target", true, "display", &Project::set_show_target),
-                    plugin::toggle("show_estimate", "Show Estimate", true, "display", &Project::set_show_estimate),
-                    plugin::toggle("show_wind", "Show Wind", true, "display", &Project::set_show_wind),
-                    plugin::toggle("show_bending", "Show Bending", false, "display", &Project::set_show_bending),
-                    plugin::float_setting("stretch_width", "Stretch Width", 2.0F, "display", 0.25F, 8.0F, 0.25F, &Project::set_stretch_width),
-                    plugin::float_setting("bending_width", "Bending Width", 1.0F, "display", 0.25F, 8.0F, 0.25F, &Project::set_bending_width),
-                    plugin::float_setting("wind_width", "Wind Width", 3.0F, "display", 0.25F, 8.0F, 0.25F, &Project::set_wind_width),
-                    plugin::float_setting("wind_scale", "Wind Scale", 2.0F, "display", 0.25F, 8.0F, 0.25F, &Project::set_wind_scale),
-                    plugin::float_setting("strain_range", "Strain Range", 0.10F, "display", 0.01F, 0.50F, 0.01F, &Project::set_strain_range),
+                    plugin::unsigned_integer_setting<Project>("trajectory_frame", "Trajectory Frame", 120u, "display", 0u, 120u, 1u, [](Project& project, const std::uint64_t value) {
+                        project.trajectory_step_ = static_cast<std::uint32_t>(value);
+                        ++project.content_revision_;
+                    }),
+                    plugin::toggle<Project>("show_target", "Show Target", true, "display", [](Project& project, const bool value) {
+                        project.show_target_ = value;
+                        ++project.revision;
+                    }),
+                    plugin::toggle<Project>("show_estimate", "Show Estimate", true, "display", [](Project& project, const bool value) {
+                        project.show_estimate_ = value;
+                        ++project.revision;
+                    }),
+                    plugin::toggle<Project>("show_wind", "Show Wind", true, "display", [](Project& project, const bool value) {
+                        project.show_wind_ = value;
+                        ++project.revision;
+                    }),
+                    plugin::toggle<Project>("show_bending", "Show Bending", false, "display", [](Project& project, const bool value) {
+                        project.show_bending_ = value;
+                        ++project.revision;
+                    }),
+                    plugin::float_setting<Project>("stretch_width", "Stretch Width", 2.0F, "display", 0.25F, 8.0F, 0.25F, [](Project& project, const float value) {
+                        project.stretch_width_ = value;
+                        ++project.content_revision_;
+                    }),
+                    plugin::float_setting<Project>("bending_width", "Bending Width", 1.0F, "display", 0.25F, 8.0F, 0.25F, [](Project& project, const float value) {
+                        project.bending_width_ = value;
+                        ++project.content_revision_;
+                    }),
+                    plugin::float_setting<Project>("wind_width", "Wind Width", 3.0F, "display", 0.25F, 8.0F, 0.25F, [](Project& project, const float value) {
+                        project.wind_width_ = value;
+                        ++project.content_revision_;
+                    }),
+                    plugin::float_setting<Project>("wind_scale", "Wind Scale", 2.0F, "display", 0.25F, 8.0F, 0.25F, [](Project& project, const float value) {
+                        project.wind_scale_ = value;
+                        ++project.content_revision_;
+                    }),
+                    plugin::float_setting<Project>("strain_range", "Strain Range", 0.10F, "display", 0.01F, 0.50F, 0.01F, [](Project& project, const float value) {
+                        project.strain_range_ = value;
+                        ++project.content_revision_;
+                    }),
                 },
             };
             return value;
@@ -536,26 +426,25 @@ namespace xayah::cloth::examples::wind_trajectory_optimization::project {
             else if (option.key == "iterations_per_update") options.iterations_per_update = static_cast<std::uint32_t>(std::stoul(option.value));
         }
         Configuration configuration = make_configuration(options);
-        return Project(std::make_unique<State>(options, std::move(configuration), std::move(context.host_services)));
+        return Project(options, std::move(configuration), std::move(context.host_services));
     }
 
     void Project::update(const plugin::UpdateInfo& update) {
-        this->state_->current_frame_slot = update.frame_slot_index;
-        this->state_->update_running = update.update_running;
-        CudaEventTimer timer{};
-        const cudaStream_t stream = static_cast<cudaStream_t>(this->state_->task.context().resource().native_stream());
-        timer.begin(stream);
-        if (this->state_->reset_pending) reset_task(*this->state_);
-        if (update.update_delta_seconds > 0.0) {
-            for (std::uint32_t iteration = 0u; iteration < this->state_->options.iterations_per_update; ++iteration) this->state_->task.optimize_step();
-            ++this->state_->content_revision;
+        this->current_frame_slot_ = update.frame_slot_index;
+        this->update_running_ = update.update_running;
+        const cudaStream_t stream = static_cast<cudaStream_t>(this->task_.context.resource.native_stream);
+        this->cuda_timer_.begin(stream);
+        if (this->reset_pending_) {
+            this->task_.reset();
+            this->reset_pending_ = false;
+            ++this->content_revision_;
         }
-        if (this->state_->target_stretch_segments.slot_revision(update.frame_slot_index) != this->state_->content_revision || this->state_->estimated_stretch_segments.slot_revision(update.frame_slot_index) != this->state_->content_revision || this->state_->estimated_bending_segments.slot_revision(update.frame_slot_index) != this->state_->content_revision || this->state_->target_wind_segments.slot_revision(update.frame_slot_index) != this->state_->content_revision || this->state_->estimated_wind_segments.slot_revision(update.frame_slot_index) != this->state_->content_revision) write_visualization(*this->state_, update.frame_slot_index);
-        this->state_->cuda_update_milliseconds = timer.finish(stream);
-    }
-
-    std::uint64_t Project::revision() const {
-        return this->state_->scene_revision;
+        if (update.update_delta_seconds > 0.0) {
+            for (std::uint32_t iteration = 0u; iteration < this->options_.iterations_per_update; ++iteration) this->task_.optimize_step();
+            ++this->content_revision_;
+        }
+        if (this->target_stretch_segments_.slot_revisions[update.frame_slot_index] != this->content_revision_ || this->estimated_stretch_segments_.slot_revisions[update.frame_slot_index] != this->content_revision_ || this->estimated_bending_segments_.slot_revisions[update.frame_slot_index] != this->content_revision_ || this->target_wind_segments_.slot_revisions[update.frame_slot_index] != this->content_revision_ || this->estimated_wind_segments_.slot_revisions[update.frame_slot_index] != this->content_revision_) this->write_visualization(update.frame_slot_index);
+        this->cuda_update_milliseconds_ = this->cuda_timer_.finish(stream);
     }
 
     void Project::write_document(plugin::SceneBuilder& scene) const {
@@ -563,9 +452,9 @@ namespace xayah::cloth::examples::wind_trajectory_optimization::project {
             .update = {.enabled = true, .initial_running = false, .step_delta_seconds = 1.0 / 60.0},
             .navigation_target = {
                 .revision = 1u,
-                .focus = {this->state_->options.width * 0.5F, -this->state_->options.height * 0.45F, this->state_->options.height * 0.5F},
-                .bounds_minimum = {-this->state_->options.width * 0.75F, -this->state_->options.height * 1.25F, -this->state_->options.height * 0.1F},
-                .bounds_maximum = {this->state_->options.width * 1.1F, this->state_->options.height * 0.25F, this->state_->options.height * 1.1F},
+                .focus = {this->options_.width * 0.5F, -this->options_.height * 0.45F, this->options_.height * 0.5F},
+                .bounds_minimum = {-this->options_.width * 0.75F, -this->options_.height * 1.25F, -this->options_.height * 0.1F},
+                .bounds_maximum = {this->options_.width * 1.1F, this->options_.height * 0.25F, this->options_.height * 1.1F},
                 .navigation_up = {0.0F, 1.0F, 0.0F},
             },
             .active_camera_name = "Overview",
@@ -573,24 +462,24 @@ namespace xayah::cloth::examples::wind_trajectory_optimization::project {
     }
 
     void Project::write_frame(plugin::SceneBuilder& scene, const plugin::FrameInfo) const {
-        plugin::Document document{.cameras = {overview_camera(this->state_->options.width, this->state_->options.height)}};
-        if (this->state_->show_target) document.viewport_segment_sets.push_back({.name = "Target Stretch Springs", .owner_name = "Overview", .segment_count = this->state_->task.model().topology().stretch_springs.size(), .buffer_id = this->state_->target_stretch_segments.resource_id(), .source_byte_size = this->state_->target_stretch_segments.byte_size(), .width = 1.0F});
-        if (this->state_->show_estimate) document.viewport_segment_sets.push_back({.name = "Estimated Stretch Springs", .owner_name = "Overview", .segment_count = this->state_->task.model().topology().stretch_springs.size(), .buffer_id = this->state_->estimated_stretch_segments.resource_id(), .source_byte_size = this->state_->estimated_stretch_segments.byte_size(), .width = this->state_->stretch_width});
-        if (this->state_->show_bending) document.viewport_segment_sets.push_back({.name = "Estimated Bending Springs", .owner_name = "Overview", .segment_count = this->state_->task.model().topology().bending_springs.size(), .buffer_id = this->state_->estimated_bending_segments.resource_id(), .source_byte_size = this->state_->estimated_bending_segments.byte_size(), .width = this->state_->bending_width});
-        if (this->state_->show_wind) {
-            document.viewport_segment_sets.push_back({.name = "Target Wind", .owner_name = "Overview", .segment_count = 3u, .buffer_id = this->state_->target_wind_segments.resource_id(), .source_byte_size = this->state_->target_wind_segments.byte_size(), .width = this->state_->wind_width});
-            document.viewport_segment_sets.push_back({.name = "Estimated Wind", .owner_name = "Overview", .segment_count = 3u, .buffer_id = this->state_->estimated_wind_segments.resource_id(), .source_byte_size = this->state_->estimated_wind_segments.byte_size(), .width = this->state_->wind_width});
+        plugin::Document document{.cameras = {overview_camera(this->options_.width, this->options_.height)}};
+        if (this->show_target_) document.viewport_segment_sets.push_back({.name = "Target Stretch Springs", .owner_name = "Overview", .segment_count = this->task_.model.topology.stretch_springs.size(), .buffer_id = this->target_stretch_segments_.allocation.resource_id, .source_byte_size = this->target_stretch_segments_.allocation.byte_size, .width = 1.0F});
+        if (this->show_estimate_) document.viewport_segment_sets.push_back({.name = "Estimated Stretch Springs", .owner_name = "Overview", .segment_count = this->task_.model.topology.stretch_springs.size(), .buffer_id = this->estimated_stretch_segments_.allocation.resource_id, .source_byte_size = this->estimated_stretch_segments_.allocation.byte_size, .width = this->stretch_width_});
+        if (this->show_bending_) document.viewport_segment_sets.push_back({.name = "Estimated Bending Springs", .owner_name = "Overview", .segment_count = this->task_.model.topology.bending_springs.size(), .buffer_id = this->estimated_bending_segments_.allocation.resource_id, .source_byte_size = this->estimated_bending_segments_.allocation.byte_size, .width = this->bending_width_});
+        if (this->show_wind_) {
+            document.viewport_segment_sets.push_back({.name = "Target Wind", .owner_name = "Overview", .segment_count = 3u, .buffer_id = this->target_wind_segments_.allocation.resource_id, .source_byte_size = this->target_wind_segments_.allocation.byte_size, .width = this->wind_width_});
+            document.viewport_segment_sets.push_back({.name = "Estimated Wind", .owner_name = "Overview", .segment_count = 3u, .buffer_id = this->estimated_wind_segments_.allocation.resource_id, .source_byte_size = this->estimated_wind_segments_.allocation.byte_size, .width = this->wind_width_});
         }
         scene.set_document(std::move(document));
     }
 
     void Project::write_controls(plugin::ControlBuilder& controls) const {
-        const WindTrajectoryOptimizationMetrics& metrics = this->state_->task.metrics();
-        const std::size_t control_step = std::min<std::size_t>(this->state_->trajectory_step, this->state_->options.trajectory_steps - 1u);
-        const Vector3 target_wind = this->state_->task.target_wind(control_step);
-        const Vector3 estimated_wind = this->state_->task.estimated_wind(control_step);
+        const WindTrajectoryOptimizationMetrics& metrics = this->task_.metrics;
+        const std::size_t control_step = std::min<std::size_t>(this->trajectory_step_, this->options_.trajectory_steps - 1u);
+        const Vector3 target_wind = interpolate_wind(this->task_.target_keyframes, control_step, this->options_.trajectory_steps);
+        const Vector3 estimated_wind = interpolate_wind(this->task_.estimated_keyframes, control_step, this->options_.trajectory_steps);
         controls
-            .phase(this->state_->update_running ? "Optimizing" : "Paused")
+            .phase(this->update_running_ ? "Optimizing" : "Paused")
             .headline("Differentiable wind-trajectory optimization")
             .message("The full target and estimated trajectories, loss seeds, VJP, and segment instances remain on the GPU.")
             .metric("iteration", "Iteration", std::to_string(metrics.iteration), "optimization")
@@ -600,77 +489,102 @@ namespace xayah::cloth::examples::wind_trajectory_optimization::project {
             .metric("gradient_norm", "Gradient L2 Norm", std::format("{:.9e}", metrics.gradient_norm), "optimization")
             .metric("target_wind", "Target Wind X / Z", std::format("{:+.5f} / {:+.5f}", target_wind.x, target_wind.z), "optimization")
             .metric("estimated_wind", "Estimated Wind X / Z", std::format("{:+.5f} / {:+.5f}", estimated_wind.x, estimated_wind.z), "optimization")
-            .metric("duration", "Trajectory Duration", std::format("{:.4f} s", static_cast<double>(this->state_->options.trajectory_steps) * this->state_->options.time_step), "optimization")
-            .metric("grid", "Grid", std::format("{} x {}", this->state_->options.rows, this->state_->options.columns), "physics")
-            .metric("cuda", "CUDA Optimization", std::format("{:.3f} ms", this->state_->cuda_update_milliseconds), "optimization")
-            .metric("trajectory_frame", "Trajectory Frame", std::format("{} / {}", this->state_->trajectory_step, this->state_->options.trajectory_steps), "display")
-            .metric("physical_time", "Physical Time", std::format("{:.4f} s", static_cast<double>(this->state_->trajectory_step) * this->state_->options.time_step), "display")
-            .metric("slot", "Frame Slot", std::to_string(this->state_->current_frame_slot), "display")
-            .unsigned_setting("trajectory_frame", this->state_->trajectory_step, 0u, this->state_->options.trajectory_steps, 1u)
-            .setting("show_target", this->state_->show_target ? "true" : "false")
-            .setting("show_estimate", this->state_->show_estimate ? "true" : "false")
-            .setting("show_wind", this->state_->show_wind ? "true" : "false")
-            .setting("show_bending", this->state_->show_bending ? "true" : "false")
-            .setting("stretch_width", std::format("{}", this->state_->stretch_width))
-            .setting("bending_width", std::format("{}", this->state_->bending_width))
-            .setting("wind_width", std::format("{}", this->state_->wind_width))
-            .setting("wind_scale", std::format("{}", this->state_->wind_scale))
-            .setting("strain_range", std::format("{}", this->state_->strain_range))
+            .metric("duration", "Trajectory Duration", std::format("{:.4f} s", static_cast<double>(this->options_.trajectory_steps) * this->options_.time_step), "optimization")
+            .metric("grid", "Grid", std::format("{} x {}", this->options_.rows, this->options_.columns), "physics")
+            .metric("cuda", "CUDA Optimization", std::format("{:.3f} ms", this->cuda_update_milliseconds_), "optimization")
+            .metric("trajectory_frame", "Trajectory Frame", std::format("{} / {}", this->trajectory_step_, this->options_.trajectory_steps), "display")
+            .metric("physical_time", "Physical Time", std::format("{:.4f} s", static_cast<double>(this->trajectory_step_) * this->options_.time_step), "display")
+            .metric("slot", "Frame Slot", std::to_string(this->current_frame_slot_), "display")
+            .unsigned_setting("trajectory_frame", this->trajectory_step_, 0u, this->options_.trajectory_steps, 1u)
+            .setting("show_target", this->show_target_ ? "true" : "false")
+            .setting("show_estimate", this->show_estimate_ ? "true" : "false")
+            .setting("show_wind", this->show_wind_ ? "true" : "false")
+            .setting("show_bending", this->show_bending_ ? "true" : "false")
+            .setting("stretch_width", std::format("{}", this->stretch_width_))
+            .setting("bending_width", std::format("{}", this->bending_width_))
+            .setting("wind_width", std::format("{}", this->wind_width_))
+            .setting("wind_scale", std::format("{}", this->wind_scale_))
+            .setting("strain_range", std::format("{}", this->strain_range_))
             .enable("reset");
     }
 
-    void Project::reset_optimization() {
-        this->state_->reset_pending = true;
-    }
-
-    void Project::set_trajectory_frame(const std::uint64_t value) {
-        this->state_->trajectory_step = static_cast<std::uint32_t>(value);
-        ++this->state_->content_revision;
-    }
-
-    void Project::set_show_target(const bool value) {
-        this->state_->show_target = value;
-        ++this->state_->scene_revision;
-    }
-
-    void Project::set_show_estimate(const bool value) {
-        this->state_->show_estimate = value;
-        ++this->state_->scene_revision;
-    }
-
-    void Project::set_show_wind(const bool value) {
-        this->state_->show_wind = value;
-        ++this->state_->scene_revision;
-    }
-
-    void Project::set_show_bending(const bool value) {
-        this->state_->show_bending = value;
-        ++this->state_->scene_revision;
-    }
-
-    void Project::set_stretch_width(const float value) {
-        this->state_->stretch_width = value;
-        ++this->state_->content_revision;
-    }
-
-    void Project::set_bending_width(const float value) {
-        this->state_->bending_width = value;
-        ++this->state_->content_revision;
-    }
-
-    void Project::set_wind_width(const float value) {
-        this->state_->wind_width = value;
-        ++this->state_->content_revision;
-    }
-
-    void Project::set_wind_scale(const float value) {
-        this->state_->wind_scale = value;
-        ++this->state_->content_revision;
-    }
-
-    void Project::set_strain_range(const float value) {
-        this->state_->strain_range = value;
-        ++this->state_->content_revision;
+    void Project::write_visualization(const std::uint32_t frame_slot_index) {
+        ExecutionContext& context = this->task_.context;
+        const Model& model = this->task_.model;
+        const cudaStream_t stream = static_cast<cudaStream_t>(context.resource.native_stream);
+        const DeviceTopology& topology = context.device_topology;
+        const ::xayah::cloth::State& target_state = this->task_.target_trajectory.states[this->trajectory_step_];
+        const ::xayah::cloth::State& estimated_state = this->task_.estimated_trajectory.states[this->trajectory_step_];
+        const std::size_t control_step = std::min<std::size_t>(this->trajectory_step_, this->options_.trajectory_steps - 1u);
+        const Vector3 target_wind = interpolate_wind(this->task_.target_keyframes, control_step, this->options_.trajectory_steps);
+        const Vector3 estimated_wind = interpolate_wind(this->task_.estimated_keyframes, control_step, this->options_.trajectory_steps);
+        visualization_cuda::launch_segments(
+            stream,
+            static_cast<std::uint32_t>(model.topology.stretch_springs.size()),
+            target_state.positions.x.data,
+            target_state.positions.y.data,
+            target_state.positions.z.data,
+            topology.stretch.first.data,
+            topology.stretch.second.data,
+            this->visualization_parameters_.stretch_rest_lengths.data,
+            1.0F,
+            this->strain_range_,
+            visualization_cuda::SegmentStyle::target,
+            this->target_stretch_segments_.mapped_buffers[frame_slot_index]);
+        visualization_cuda::launch_segments(
+            stream,
+            static_cast<std::uint32_t>(model.topology.stretch_springs.size()),
+            estimated_state.positions.x.data,
+            estimated_state.positions.y.data,
+            estimated_state.positions.z.data,
+            topology.stretch.first.data,
+            topology.stretch.second.data,
+            this->visualization_parameters_.stretch_rest_lengths.data,
+            this->stretch_width_,
+            this->strain_range_,
+            visualization_cuda::SegmentStyle::estimate,
+            this->estimated_stretch_segments_.mapped_buffers[frame_slot_index]);
+        visualization_cuda::launch_segments(
+            stream,
+            static_cast<std::uint32_t>(model.topology.bending_springs.size()),
+            estimated_state.positions.x.data,
+            estimated_state.positions.y.data,
+            estimated_state.positions.z.data,
+            topology.bending.first.data,
+            topology.bending.second.data,
+            this->visualization_parameters_.bending_rest_lengths.data,
+            this->bending_width_,
+            this->strain_range_,
+            visualization_cuda::SegmentStyle::bending,
+            this->estimated_bending_segments_.mapped_buffers[frame_slot_index]);
+        visualization_cuda::launch_wind_arrow(
+            stream,
+            -0.42F * this->options_.width,
+            -0.12F * this->options_.height,
+            0.50F * this->options_.height,
+            target_wind.x,
+            target_wind.z,
+            this->wind_scale_,
+            this->wind_width_,
+            visualization_cuda::SegmentStyle::target_wind,
+            this->target_wind_segments_.mapped_buffers[frame_slot_index]);
+        visualization_cuda::launch_wind_arrow(
+            stream,
+            -0.42F * this->options_.width,
+            -0.12F * this->options_.height,
+            0.50F * this->options_.height,
+            estimated_wind.x,
+            estimated_wind.z,
+            this->wind_scale_,
+            this->wind_width_,
+            visualization_cuda::SegmentStyle::estimated_wind,
+            this->estimated_wind_segments_.mapped_buffers[frame_slot_index]);
+        if (const cudaError_t status = cudaGetLastError(); status != cudaSuccess) throw std::runtime_error(std::format("cloth visualization kernel launch failed: {}", cudaGetErrorString(status)));
+        this->target_stretch_segments_.slot_revisions[frame_slot_index] = this->content_revision_;
+        this->estimated_stretch_segments_.slot_revisions[frame_slot_index] = this->content_revision_;
+        this->estimated_bending_segments_.slot_revisions[frame_slot_index] = this->content_revision_;
+        this->target_wind_segments_.slot_revisions[frame_slot_index] = this->content_revision_;
+        this->estimated_wind_segments_.slot_revisions[frame_slot_index] = this->content_revision_;
     }
 
 } // namespace xayah::cloth::examples::wind_trajectory_optimization::project
