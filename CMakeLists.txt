@@ -107,6 +107,35 @@ endif ()
 
 
 # ============================================================================
+# Cloth Wind-Trajectory Optimization Example
+# ============================================================================
+set(WIND_TRAJECTORY_OPTIMIZATION_DIR examples/cloth/wind_trajectory_optimization)
+
+add_library(xayah-example-cloth-wind-trajectory-optimization-cuda STATIC ${WIND_TRAJECTORY_OPTIMIZATION_DIR}/task.cu)
+target_include_directories(xayah-example-cloth-wind-trajectory-optimization-cuda PRIVATE ${WIND_TRAJECTORY_OPTIMIZATION_DIR})
+target_link_libraries(xayah-example-cloth-wind-trajectory-optimization-cuda PRIVATE CUDA::cudart)
+
+add_library(xayah-example-cloth-wind-trajectory-optimization)
+target_sources(
+        xayah-example-cloth-wind-trajectory-optimization
+        PRIVATE
+        ${WIND_TRAJECTORY_OPTIMIZATION_DIR}/task.cpp
+        PUBLIC
+        FILE_SET cxx_modules TYPE CXX_MODULES FILES
+        ${WIND_TRAJECTORY_OPTIMIZATION_DIR}/task.ixx
+)
+target_link_libraries(xayah-example-cloth-wind-trajectory-optimization PUBLIC xayah-cloth PRIVATE xayah-example-cloth-wind-trajectory-optimization-cuda CUDA::cudart)
+set_property(TARGET xayah-example-cloth-wind-trajectory-optimization PROPERTY CXX_MODULE_STD ON)
+
+add_executable(diff-cloth-wind-trajectory-optimization ${WIND_TRAJECTORY_OPTIMIZATION_DIR}/main.cpp)
+target_link_libraries(diff-cloth-wind-trajectory-optimization PRIVATE xayah-example-cloth-wind-trajectory-optimization CUDA::cudart)
+set_property(TARGET diff-cloth-wind-trajectory-optimization PROPERTY CXX_MODULE_STD ON)
+if (MSVC)
+    target_link_options(diff-cloth-wind-trajectory-optimization PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
+endif ()
+
+
+# ============================================================================
 # Spectra Plugin Adapter
 # ============================================================================
 if (DIFF_SOLVER_BUILD_SPECTRA_PLUGINS)
@@ -129,5 +158,17 @@ if (DIFF_SOLVER_BUILD_SPECTRA_PLUGINS)
     set_property(TARGET cloth-stretch-stiffness-inverse-plugin PROPERTY CXX_MODULE_STD ON)
     if (MSVC)
         target_link_options(cloth-stretch-stiffness-inverse-plugin PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
+    endif ()
+
+    # Cloth Wind-Trajectory Optimization Example Plugin
+    add_library(xayah-example-cloth-wind-trajectory-optimization-spectra-cuda STATIC ${WIND_TRAJECTORY_OPTIMIZATION_DIR}/project.cu)
+    target_include_directories(xayah-example-cloth-wind-trajectory-optimization-spectra-cuda PRIVATE ${WIND_TRAJECTORY_OPTIMIZATION_DIR})
+    target_link_libraries(xayah-example-cloth-wind-trajectory-optimization-spectra-cuda PRIVATE CUDA::cudart)
+
+    add_library(cloth-wind-trajectory-optimization-plugin SHARED ${WIND_TRAJECTORY_OPTIMIZATION_DIR}/project.cpp)
+    target_link_libraries(cloth-wind-trajectory-optimization-plugin PRIVATE xayah-spectra-plugin xayah-example-cloth-wind-trajectory-optimization xayah-example-cloth-wind-trajectory-optimization-spectra-cuda CUDA::cudart)
+    set_property(TARGET cloth-wind-trajectory-optimization-plugin PROPERTY CXX_MODULE_STD ON)
+    if (MSVC)
+        target_link_options(cloth-wind-trajectory-optimization-plugin PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
     endif ()
 endif ()
