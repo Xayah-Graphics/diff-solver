@@ -8,21 +8,9 @@ import std;
 
 namespace xayah::cloth {
 
-    namespace {
-
-        void check_cuda(const cudaError_t result) {
-            if (result != cudaSuccess) throw std::runtime_error(cudaGetErrorString(result));
-        }
-
-        void terminate_on_cuda_error(const cudaError_t result) noexcept {
-            if (result != cudaSuccess) std::terminate();
-        }
-
-    } // namespace
-
     Resource::Resource() : stream_(nullptr), memory_pool_(nullptr) {
         int device;
-        check_cuda(cudaGetDevice(&device));
+        if (const cudaError_t result = cudaGetDevice(&device); result != cudaSuccess) throw std::runtime_error(cudaGetErrorString(result));
         cudaMemPoolProps properties{};
         properties.allocType     = cudaMemAllocationTypePinned;
         properties.handleTypes   = cudaMemHandleTypeNone;
@@ -30,51 +18,51 @@ namespace xayah::cloth {
         properties.location.id   = device;
 
         cudaMemPool_t memory_pool;
-        check_cuda(cudaMemPoolCreate(&memory_pool, &properties));
+        if (const cudaError_t result = cudaMemPoolCreate(&memory_pool, &properties); result != cudaSuccess) throw std::runtime_error(cudaGetErrorString(result));
         memory_pool_ = memory_pool;
 
         std::uint64_t release_threshold = std::numeric_limits<std::uint64_t>::max();
-        check_cuda(cudaMemPoolSetAttribute(memory_pool, cudaMemPoolAttrReleaseThreshold, &release_threshold));
+        if (const cudaError_t result = cudaMemPoolSetAttribute(memory_pool, cudaMemPoolAttrReleaseThreshold, &release_threshold); result != cudaSuccess) throw std::runtime_error(cudaGetErrorString(result));
 
         cudaStream_t stream;
-        check_cuda(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
+        if (const cudaError_t result = cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking); result != cudaSuccess) throw std::runtime_error(cudaGetErrorString(result));
         stream_ = stream;
     }
 
     Resource::~Resource() noexcept {
-        terminate_on_cuda_error(cudaStreamSynchronize(static_cast<cudaStream_t>(stream_)));
-        terminate_on_cuda_error(cudaStreamDestroy(static_cast<cudaStream_t>(stream_)));
-        terminate_on_cuda_error(cudaMemPoolDestroy(static_cast<cudaMemPool_t>(memory_pool_)));
+        if (cudaStreamSynchronize(static_cast<cudaStream_t>(stream_)) != cudaSuccess) std::terminate();
+        if (cudaStreamDestroy(static_cast<cudaStream_t>(stream_)) != cudaSuccess) std::terminate();
+        if (cudaMemPoolDestroy(static_cast<cudaMemPool_t>(memory_pool_)) != cudaSuccess) std::terminate();
     }
 
     void* Resource::allocate(const std::size_t bytes) {
         void* allocation;
-        check_cuda(cudaMallocFromPoolAsync(&allocation, bytes, static_cast<cudaMemPool_t>(memory_pool_), static_cast<cudaStream_t>(stream_)));
+        if (const cudaError_t result = cudaMallocFromPoolAsync(&allocation, bytes, static_cast<cudaMemPool_t>(memory_pool_), static_cast<cudaStream_t>(stream_)); result != cudaSuccess) throw std::runtime_error(cudaGetErrorString(result));
         return allocation;
     }
 
     void Resource::release(void* allocation) noexcept {
-        terminate_on_cuda_error(cudaFreeAsync(allocation, static_cast<cudaStream_t>(stream_)));
+        if (cudaFreeAsync(allocation, static_cast<cudaStream_t>(stream_)) != cudaSuccess) std::terminate();
     }
 
     void Resource::copy_from_host(void* destination, const void* source, const std::size_t bytes) {
-        check_cuda(cudaMemcpyAsync(destination, source, bytes, cudaMemcpyHostToDevice, static_cast<cudaStream_t>(stream_)));
+        if (const cudaError_t result = cudaMemcpyAsync(destination, source, bytes, cudaMemcpyHostToDevice, static_cast<cudaStream_t>(stream_)); result != cudaSuccess) throw std::runtime_error(cudaGetErrorString(result));
     }
 
     void Resource::copy_to_host(void* destination, const void* source, const std::size_t bytes) {
-        check_cuda(cudaMemcpyAsync(destination, source, bytes, cudaMemcpyDeviceToHost, static_cast<cudaStream_t>(stream_)));
+        if (const cudaError_t result = cudaMemcpyAsync(destination, source, bytes, cudaMemcpyDeviceToHost, static_cast<cudaStream_t>(stream_)); result != cudaSuccess) throw std::runtime_error(cudaGetErrorString(result));
     }
 
     void Resource::copy_device(void* destination, const void* source, const std::size_t bytes) {
-        check_cuda(cudaMemcpyAsync(destination, source, bytes, cudaMemcpyDeviceToDevice, static_cast<cudaStream_t>(stream_)));
+        if (const cudaError_t result = cudaMemcpyAsync(destination, source, bytes, cudaMemcpyDeviceToDevice, static_cast<cudaStream_t>(stream_)); result != cudaSuccess) throw std::runtime_error(cudaGetErrorString(result));
     }
 
     void Resource::zero(void* destination, const std::size_t bytes) {
-        check_cuda(cudaMemsetAsync(destination, 0, bytes, static_cast<cudaStream_t>(stream_)));
+        if (const cudaError_t result = cudaMemsetAsync(destination, 0, bytes, static_cast<cudaStream_t>(stream_)); result != cudaSuccess) throw std::runtime_error(cudaGetErrorString(result));
     }
 
     void Resource::synchronize() {
-        check_cuda(cudaStreamSynchronize(static_cast<cudaStream_t>(stream_)));
+        if (const cudaError_t result = cudaStreamSynchronize(static_cast<cudaStream_t>(stream_)); result != cudaSuccess) throw std::runtime_error(cudaGetErrorString(result));
     }
 
     void* Resource::native_stream() const {

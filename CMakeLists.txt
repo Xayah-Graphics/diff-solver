@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 4.4.0)
 set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "f35a9ac6-8463-4d38-8eec-5d6008153e7d")
 project(diff-solver VERSION 1.0.0 LANGUAGES CXX CUDA)
 
+option(DIFF_SOLVER_BUILD_PROJECT_PLUGIN "Build the Spectra Cloth project plugin" ON)
+
 # ============================================================================
 # C++ Configuration
 # ============================================================================
@@ -83,4 +85,28 @@ target_link_libraries(diff-cloth PRIVATE xayah-solver xayah-cloth CUDA::cudart)
 set_property(TARGET diff-cloth PROPERTY CXX_MODULE_STD ON)
 if (MSVC)
     target_link_options(diff-cloth PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
+endif ()
+
+
+# ============================================================================
+# Spectra Cloth Project Plugin
+# ============================================================================
+if (DIFF_SOLVER_BUILD_PROJECT_PLUGIN)
+    add_library(xayah-cloth-visualization-cuda STATIC cloth/cloth.visualization.cu)
+    target_include_directories(xayah-cloth-visualization-cuda PRIVATE cloth)
+    target_link_libraries(xayah-cloth-visualization-cuda PRIVATE CUDA::cudart)
+
+    add_library(cloth_project_plugin SHARED cloth/cloth.project.cpp)
+    target_sources(
+            cloth_project_plugin
+            PRIVATE
+            FILE_SET cxx_modules TYPE CXX_MODULES FILES
+            cloth/cloth.plugin.ixx
+            cloth/cloth.project.ixx
+    )
+    target_link_libraries(cloth_project_plugin PRIVATE xayah-cloth xayah-cloth-visualization-cuda CUDA::cudart)
+    set_property(TARGET cloth_project_plugin PROPERTY CXX_MODULE_STD ON)
+    if (MSVC)
+        target_link_options(cloth_project_plugin PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
+    endif ()
 endif ()

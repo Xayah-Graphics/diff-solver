@@ -255,11 +255,6 @@ namespace xayah::cloth::cuda_kernel {
             add(destination, index, load(source, index));
         }
 
-        void check_launch() {
-            const cudaError_t result = cudaGetLastError();
-            if (result != cudaSuccess) throw std::runtime_error(cudaGetErrorString(result));
-        }
-
         std::uint32_t grid_size(const std::uint32_t count) {
             return (count + block_size - 1) / block_size;
         }
@@ -268,58 +263,58 @@ namespace xayah::cloth::cuda_kernel {
 
     void launch_force_forward(void* stream, const std::uint32_t particle_count, const float gravity_x, const float gravity_y, const float gravity_z, const ConstField positions, const ConstField velocities, const ConstField controls, const float* masses, const SpringTopology stretch_topology, const SpringParameters stretch_parameters, const SpringTopology bending_topology, const SpringParameters bending_parameters, const Field forces) {
         force_forward_kernel<<<grid_size(particle_count), block_size, 0, static_cast<cudaStream_t>(stream)>>>(particle_count, {gravity_x, gravity_y, gravity_z}, positions, velocities, controls, masses, stretch_topology, stretch_parameters, bending_topology, bending_parameters, forces);
-        check_launch();
+        if (const cudaError_t result = cudaGetLastError(); result != cudaSuccess) throw std::runtime_error(cudaGetErrorString(result));
     }
 
     void launch_force_jvp(void* stream, const std::uint32_t particle_count, const float gravity_x, const float gravity_y, const float gravity_z, const ConstField positions, const ConstField velocities, const ConstField controls_tangent, const ConstField positions_tangent, const ConstField velocities_tangent, const float* masses_tangent, const SpringTopology stretch_topology, const SpringParameters stretch_parameters, const SpringParameterTangents stretch_tangents, const SpringTopology bending_topology, const SpringParameters bending_parameters, const SpringParameterTangents bending_tangents, const Field force_tangent) {
         force_jvp_kernel<<<grid_size(particle_count), block_size, 0, static_cast<cudaStream_t>(stream)>>>(particle_count, {gravity_x, gravity_y, gravity_z}, positions, velocities, controls_tangent, positions_tangent, velocities_tangent, masses_tangent, stretch_topology, stretch_parameters, stretch_tangents, bending_topology, bending_parameters, bending_tangents, force_tangent);
-        check_launch();
+        if (const cudaError_t result = cudaGetLastError(); result != cudaSuccess) throw std::runtime_error(cudaGetErrorString(result));
     }
 
     void launch_force_state_vjp(void* stream, const std::uint32_t particle_count, const float gravity_x, const float gravity_y, const float gravity_z, const ConstField positions, const ConstField velocities, const ConstField force_adjoint, const SpringTopology stretch_topology, const SpringParameters stretch_parameters, const SpringTopology bending_topology, const SpringParameters bending_parameters, const Field state_position_adjoint, const Field state_velocity_adjoint, const Field control_adjoint, float* mass_adjoint) {
         force_state_vjp_kernel<<<grid_size(particle_count), block_size, 0, static_cast<cudaStream_t>(stream)>>>(particle_count, {gravity_x, gravity_y, gravity_z}, positions, velocities, force_adjoint, stretch_topology, stretch_parameters, bending_topology, bending_parameters, state_position_adjoint, state_velocity_adjoint, control_adjoint, mass_adjoint);
-        check_launch();
+        if (const cudaError_t result = cudaGetLastError(); result != cudaSuccess) throw std::runtime_error(cudaGetErrorString(result));
     }
 
     void launch_force_parameter_vjp(void* stream, const std::uint32_t spring_count, const ConstField positions, const ConstField velocities, const ConstField force_adjoint, const SpringTopology topology, const SpringParameters parameters, const SpringParameterAdjoints parameter_adjoint) {
         if (spring_count == 0) return;
         force_parameter_vjp_kernel<<<grid_size(spring_count), block_size, 0, static_cast<cudaStream_t>(stream)>>>(spring_count, positions, velocities, force_adjoint, topology, parameters, parameter_adjoint);
-        check_launch();
+        if (const cudaError_t result = cudaGetLastError(); result != cudaSuccess) throw std::runtime_error(cudaGetErrorString(result));
     }
 
     void launch_euler_forward(void* stream, const std::uint32_t particle_count, const float time_step, const ConstField positions, const ConstField velocities, const ConstField forces, const float* masses, const Field integrated_positions, const Field integrated_velocities) {
         euler_forward_kernel<<<grid_size(particle_count), block_size, 0, static_cast<cudaStream_t>(stream)>>>(particle_count, time_step, positions, velocities, forces, masses, integrated_positions, integrated_velocities);
-        check_launch();
+        if (const cudaError_t result = cudaGetLastError(); result != cudaSuccess) throw std::runtime_error(cudaGetErrorString(result));
     }
 
     void launch_euler_jvp(void* stream, const std::uint32_t particle_count, const float time_step, const ConstField forces, const float* masses, const ConstField position_tangent, const ConstField velocity_tangent, const ConstField force_tangent, const float* mass_tangent, const Field integrated_position_tangent, const Field integrated_velocity_tangent) {
         euler_jvp_kernel<<<grid_size(particle_count), block_size, 0, static_cast<cudaStream_t>(stream)>>>(particle_count, time_step, forces, masses, position_tangent, velocity_tangent, force_tangent, mass_tangent, integrated_position_tangent, integrated_velocity_tangent);
-        check_launch();
+        if (const cudaError_t result = cudaGetLastError(); result != cudaSuccess) throw std::runtime_error(cudaGetErrorString(result));
     }
 
     void launch_euler_vjp(void* stream, const std::uint32_t particle_count, const float time_step, const ConstField forces, const float* masses, const ConstField integrated_position_adjoint, const ConstField integrated_velocity_adjoint, const Field state_position_adjoint, const Field state_velocity_adjoint, const Field force_adjoint, float* mass_adjoint) {
         euler_vjp_kernel<<<grid_size(particle_count), block_size, 0, static_cast<cudaStream_t>(stream)>>>(particle_count, time_step, forces, masses, integrated_position_adjoint, integrated_velocity_adjoint, state_position_adjoint, state_velocity_adjoint, force_adjoint, mass_adjoint);
-        check_launch();
+        if (const cudaError_t result = cudaGetLastError(); result != cudaSuccess) throw std::runtime_error(cudaGetErrorString(result));
     }
 
     void launch_constraint_forward(void* stream, const std::uint32_t particle_count, const std::uint32_t* anchor_mask, const ConstField anchor_positions, const ConstField positions, const ConstField velocities, const Field constrained_positions, const Field constrained_velocities) {
         constraint_forward_kernel<<<grid_size(particle_count), block_size, 0, static_cast<cudaStream_t>(stream)>>>(particle_count, anchor_mask, anchor_positions, positions, velocities, constrained_positions, constrained_velocities);
-        check_launch();
+        if (const cudaError_t result = cudaGetLastError(); result != cudaSuccess) throw std::runtime_error(cudaGetErrorString(result));
     }
 
     void launch_constraint_jvp(void* stream, const std::uint32_t particle_count, const std::uint32_t* anchor_mask, const ConstField position_tangent, const ConstField velocity_tangent, const Field constrained_position_tangent, const Field constrained_velocity_tangent) {
         constraint_jvp_kernel<<<grid_size(particle_count), block_size, 0, static_cast<cudaStream_t>(stream)>>>(particle_count, anchor_mask, position_tangent, velocity_tangent, constrained_position_tangent, constrained_velocity_tangent);
-        check_launch();
+        if (const cudaError_t result = cudaGetLastError(); result != cudaSuccess) throw std::runtime_error(cudaGetErrorString(result));
     }
 
     void launch_constraint_vjp(void* stream, const std::uint32_t particle_count, const std::uint32_t* anchor_mask, const ConstField constrained_position_adjoint, const ConstField constrained_velocity_adjoint, const Field position_adjoint, const Field velocity_adjoint) {
         constraint_vjp_kernel<<<grid_size(particle_count), block_size, 0, static_cast<cudaStream_t>(stream)>>>(particle_count, anchor_mask, constrained_position_adjoint, constrained_velocity_adjoint, position_adjoint, velocity_adjoint);
-        check_launch();
+        if (const cudaError_t result = cudaGetLastError(); result != cudaSuccess) throw std::runtime_error(cudaGetErrorString(result));
     }
 
     void launch_accumulate(void* stream, const std::uint32_t count, const ConstField source, const Field destination) {
         accumulate_kernel<<<grid_size(count), block_size, 0, static_cast<cudaStream_t>(stream)>>>(count, source, destination);
-        check_launch();
+        if (const cudaError_t result = cudaGetLastError(); result != cudaSuccess) throw std::runtime_error(cudaGetErrorString(result));
     }
 
 } // namespace xayah::cloth::cuda_kernel

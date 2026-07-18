@@ -31,10 +31,6 @@ namespace {
         float vjp_inner_product;
     };
 
-    void check_cuda(const cudaError_t result) {
-        if (result != cudaSuccess) throw std::runtime_error(cudaGetErrorString(result));
-    }
-
     float relative_error(const float first, const float second) {
         return std::abs(first - second) / std::max({1.0e-8F, std::abs(first), std::abs(second)});
     }
@@ -628,16 +624,16 @@ namespace {
 
         cudaEvent_t start;
         cudaEvent_t finish;
-        check_cuda(cudaEventCreate(&start));
-        check_cuda(cudaEventCreate(&finish));
-        check_cuda(cudaEventRecord(start, static_cast<cudaStream_t>(context.resource().native_stream())));
+        if (const cudaError_t result = cudaEventCreate(&start); result != cudaSuccess) throw std::runtime_error(cudaGetErrorString(result));
+        if (const cudaError_t result = cudaEventCreate(&finish); result != cudaSuccess) throw std::runtime_error(cudaGetErrorString(result));
+        if (const cudaError_t result = cudaEventRecord(start, static_cast<cudaStream_t>(context.resource().native_stream())); result != cudaSuccess) throw std::runtime_error(cudaGetErrorString(result));
         const auto trajectory = xayah::solver::simulate(model, context, initial_state, std::span<const xayah::cloth::Control>{controls}, parameters, xayah::solver::TapeMode::recompute_step_cache);
-        check_cuda(cudaEventRecord(finish, static_cast<cudaStream_t>(context.resource().native_stream())));
-        check_cuda(cudaEventSynchronize(finish));
+        if (const cudaError_t result = cudaEventRecord(finish, static_cast<cudaStream_t>(context.resource().native_stream())); result != cudaSuccess) throw std::runtime_error(cudaGetErrorString(result));
+        if (const cudaError_t result = cudaEventSynchronize(finish); result != cudaSuccess) throw std::runtime_error(cudaGetErrorString(result));
         float elapsed_milliseconds;
-        check_cuda(cudaEventElapsedTime(&elapsed_milliseconds, start, finish));
-        check_cuda(cudaEventDestroy(start));
-        check_cuda(cudaEventDestroy(finish));
+        if (const cudaError_t result = cudaEventElapsedTime(&elapsed_milliseconds, start, finish); result != cudaSuccess) throw std::runtime_error(cudaGetErrorString(result));
+        if (const cudaError_t result = cudaEventDestroy(start); result != cudaSuccess) throw std::runtime_error(cudaGetErrorString(result));
+        if (const cudaError_t result = cudaEventDestroy(finish); result != cudaSuccess) throw std::runtime_error(cudaGetErrorString(result));
 
         const HostStateData final_state = download(context, trajectory.states.back());
         float minimum_y                 = final_state.positions.front().y;
