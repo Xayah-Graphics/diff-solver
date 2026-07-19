@@ -19,10 +19,15 @@ jobs:
         run: python -m pip install cmake==4.4.0 ninja
 
       - name: Install CUDA
-        uses: Jimver/cuda-toolkit@v0.2.35
-        with:
-          cuda: '13.2.0'
-          method: network
+        shell: pwsh
+        run: |
+          $installer = Join-Path $env:RUNNER_TEMP 'cuda-13.3-installer.exe'
+          $cudaPath = 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v13.3'
+          Invoke-WebRequest -Uri 'https://developer.download.nvidia.com/compute/cuda/13.3.0/network_installers/cuda_13.3.0_windows_network.exe' -OutFile $installer
+          "CUDA_PATH=$cudaPath" >> $env:GITHUB_ENV
+          "$cudaPath\bin" >> $env:GITHUB_PATH
+          $process = Start-Process -FilePath $installer -ArgumentList '-s' -Wait -PassThru
+          exit $process.ExitCode
 
       - name: Enter Visual Studio developer environment
         shell: pwsh
