@@ -4,6 +4,7 @@ module;
 
 module xayah.cloth.operators;
 
+import std;
 import xayah.cloth.data;
 import xayah.cuda;
 

@@ -6,6 +6,7 @@ module;
 
 module xayah.smoke.operators;
 
+import std;
 import xayah.cuda;
 import xayah.smoke.data;
 
