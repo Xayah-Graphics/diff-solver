@@ -1,15 +1,17 @@
-#ifndef XAYAH_EXAMPLES_CLOTH_STRETCH_STIFFNESS_INVERSE_PROJECT_H
-#define XAYAH_EXAMPLES_CLOTH_STRETCH_STIFFNESS_INVERSE_PROJECT_H
+#ifndef XAYAH_EXAMPLES_CLOTH_VISUALIZATION_H
+#define XAYAH_EXAMPLES_CLOTH_VISUALIZATION_H
 
 #include <cstdint>
 #include <cuda_runtime_api.h>
 
-namespace xayah::cloth::examples::stretch_stiffness_inverse::visualization_cuda {
+namespace xayah::cloth::examples::visualization_cuda {
 
     enum class SegmentStyle : std::uint32_t {
         estimate,
         target,
         bending,
+        target_wind,
+        estimated_wind,
     };
 
     void launch_segments(
@@ -26,6 +28,18 @@ namespace xayah::cloth::examples::stretch_stiffness_inverse::visualization_cuda 
         SegmentStyle style,
         void* output);
 
-} // namespace xayah::cloth::examples::stretch_stiffness_inverse::visualization_cuda
+    void launch_wind_arrow(
+        cudaStream_t stream,
+        float origin_x,
+        float origin_y,
+        float origin_z,
+        float wind_x,
+        float wind_z,
+        float scale,
+        float width,
+        SegmentStyle style,
+        void* output);
+
+} // namespace xayah::cloth::examples::visualization_cuda
 
 #endif

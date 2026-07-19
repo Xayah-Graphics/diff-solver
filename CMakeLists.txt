@@ -65,21 +65,21 @@ set_property(TARGET xayah-cuda PROPERTY CXX_MODULE_STD ON)
 # ============================================================================
 # Cloth CUDA Kernels and Modules
 # ============================================================================
-add_library(xayah-cloth-cuda-kernels STATIC cloth/kernels.cu)
-target_include_directories(xayah-cloth-cuda-kernels PRIVATE cloth)
+add_library(xayah-cloth-cuda-kernels STATIC solvers/cloth/kernels.cu)
+target_include_directories(xayah-cloth-cuda-kernels PRIVATE solvers/cloth)
 target_link_libraries(xayah-cloth-cuda-kernels PRIVATE CUDA::cudart)
 
 add_library(xayah-cloth)
 target_sources(
         xayah-cloth
         PRIVATE
-        cloth/operators.cpp
-        cloth/model.cpp
+        solvers/cloth/operators.cpp
+        solvers/cloth/model.cpp
         PUBLIC
         FILE_SET cxx_modules TYPE CXX_MODULES FILES
-        cloth/data.ixx
-        cloth/operators.ixx
-        cloth/model.ixx
+        solvers/cloth/data.ixx
+        solvers/cloth/operators.ixx
+        solvers/cloth/model.ixx
 )
 target_link_libraries(xayah-cloth PUBLIC xayah-solver xayah-cuda PRIVATE xayah-cloth-cuda-kernels CUDA::cudart)
 set_property(TARGET xayah-cloth PROPERTY CXX_MODULE_STD ON)
@@ -88,32 +88,24 @@ set_property(TARGET xayah-cloth PROPERTY CXX_MODULE_STD ON)
 # ============================================================================
 # Smoke CUDA Kernels and Modules
 # ============================================================================
-add_library(xayah-smoke-cuda-kernels STATIC smoke/kernels.cu)
-target_include_directories(xayah-smoke-cuda-kernels PRIVATE smoke)
+add_library(xayah-smoke-cuda-kernels STATIC solvers/smoke/kernels.cu)
+target_include_directories(xayah-smoke-cuda-kernels PRIVATE solvers/smoke)
 target_link_libraries(xayah-smoke-cuda-kernels PRIVATE CUDA::cudart)
 
 add_library(xayah-smoke)
 target_sources(
         xayah-smoke
         PRIVATE
-        smoke/operators.cpp
-        smoke/model.cpp
+        solvers/smoke/operators.cpp
+        solvers/smoke/model.cpp
         PUBLIC
         FILE_SET cxx_modules TYPE CXX_MODULES FILES
-        smoke/data.ixx
-        smoke/operators.ixx
-        smoke/model.ixx
+        solvers/smoke/data.ixx
+        solvers/smoke/operators.ixx
+        solvers/smoke/model.ixx
 )
 target_link_libraries(xayah-smoke PUBLIC xayah-solver xayah-cuda PRIVATE xayah-smoke-cuda-kernels CUDA::cudart)
 set_property(TARGET xayah-smoke PROPERTY CXX_MODULE_STD ON)
-
-add_executable(diff-smoke smoke/main.cpp)
-target_link_libraries(diff-smoke PRIVATE xayah-smoke)
-set_property(TARGET diff-smoke PROPERTY CXX_MODULE_STD ON)
-if (MSVC)
-    target_link_options(diff-smoke PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
-endif ()
-
 
 # ============================================================================
 # Cloth Stretch-Stiffness Inverse Example
@@ -170,6 +162,35 @@ target_link_libraries(diff-cloth-wind-trajectory-optimization PRIVATE xayah-exam
 set_property(TARGET diff-cloth-wind-trajectory-optimization PROPERTY CXX_MODULE_STD ON)
 if (MSVC)
     target_link_options(diff-cloth-wind-trajectory-optimization PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
+endif ()
+
+
+# ============================================================================
+# Cloth Forward Example
+# ============================================================================
+set(CLOTH_FORWARD_DIR examples/cloth/forward)
+
+add_library(xayah-example-cloth-forward-cuda STATIC ${CLOTH_FORWARD_DIR}/simulation.cu)
+target_include_directories(xayah-example-cloth-forward-cuda PRIVATE ${CLOTH_FORWARD_DIR})
+target_link_libraries(xayah-example-cloth-forward-cuda PRIVATE CUDA::cudart)
+
+add_library(xayah-example-cloth-forward)
+target_sources(
+        xayah-example-cloth-forward
+        PRIVATE
+        ${CLOTH_FORWARD_DIR}/simulation.cpp
+        PUBLIC
+        FILE_SET cxx_modules TYPE CXX_MODULES FILES
+        ${CLOTH_FORWARD_DIR}/simulation.ixx
+)
+target_link_libraries(xayah-example-cloth-forward PUBLIC xayah-cloth PRIVATE xayah-example-cloth-forward-cuda CUDA::cudart)
+set_property(TARGET xayah-example-cloth-forward PROPERTY CXX_MODULE_STD ON)
+
+add_executable(diff-cloth-forward ${CLOTH_FORWARD_DIR}/main.cpp)
+target_link_libraries(diff-cloth-forward PRIVATE xayah-example-cloth-forward)
+set_property(TARGET diff-cloth-forward PROPERTY CXX_MODULE_STD ON)
+if (MSVC)
+    target_link_options(diff-cloth-forward PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
 endif ()
 
 
@@ -244,28 +265,32 @@ if (DIFF_SOLVER_BUILD_SPECTRA_PLUGINS)
     )
     set_property(TARGET xayah-spectra-plugin PROPERTY CXX_MODULE_STD ON)
 
-    # Cloth Stretch-Stiffness Inverse Example Plugin
-    add_library(xayah-example-cloth-stretch-stiffness-inverse-spectra-cuda STATIC ${STRETCH_STIFFNESS_INVERSE_DIR}/project.cu)
-    target_include_directories(xayah-example-cloth-stretch-stiffness-inverse-spectra-cuda PRIVATE ${STRETCH_STIFFNESS_INVERSE_DIR})
-    target_link_libraries(xayah-example-cloth-stretch-stiffness-inverse-spectra-cuda PRIVATE CUDA::cudart)
+    add_library(xayah-example-cloth-visualization-cuda STATIC examples/cloth/visualization.cu)
+    target_include_directories(xayah-example-cloth-visualization-cuda PRIVATE examples/cloth)
+    target_link_libraries(xayah-example-cloth-visualization-cuda PRIVATE CUDA::cudart)
 
+    # Cloth Stretch-Stiffness Inverse Example Plugin
     add_library(cloth-stretch-stiffness-inverse-plugin SHARED ${STRETCH_STIFFNESS_INVERSE_DIR}/project.cpp)
-    target_link_libraries(cloth-stretch-stiffness-inverse-plugin PRIVATE xayah-spectra-plugin xayah-example-cloth-stretch-stiffness-inverse xayah-example-cloth-stretch-stiffness-inverse-spectra-cuda CUDA::cudart)
+    target_link_libraries(cloth-stretch-stiffness-inverse-plugin PRIVATE xayah-spectra-plugin xayah-example-cloth-stretch-stiffness-inverse xayah-example-cloth-visualization-cuda CUDA::cudart)
     set_property(TARGET cloth-stretch-stiffness-inverse-plugin PROPERTY CXX_MODULE_STD ON)
     if (MSVC)
         target_link_options(cloth-stretch-stiffness-inverse-plugin PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
     endif ()
 
     # Cloth Wind-Trajectory Optimization Example Plugin
-    add_library(xayah-example-cloth-wind-trajectory-optimization-spectra-cuda STATIC ${WIND_TRAJECTORY_OPTIMIZATION_DIR}/project.cu)
-    target_include_directories(xayah-example-cloth-wind-trajectory-optimization-spectra-cuda PRIVATE ${WIND_TRAJECTORY_OPTIMIZATION_DIR})
-    target_link_libraries(xayah-example-cloth-wind-trajectory-optimization-spectra-cuda PRIVATE CUDA::cudart)
-
     add_library(cloth-wind-trajectory-optimization-plugin SHARED ${WIND_TRAJECTORY_OPTIMIZATION_DIR}/project.cpp)
-    target_link_libraries(cloth-wind-trajectory-optimization-plugin PRIVATE xayah-spectra-plugin xayah-example-cloth-wind-trajectory-optimization xayah-example-cloth-wind-trajectory-optimization-spectra-cuda CUDA::cudart)
+    target_link_libraries(cloth-wind-trajectory-optimization-plugin PRIVATE xayah-spectra-plugin xayah-example-cloth-wind-trajectory-optimization xayah-example-cloth-visualization-cuda CUDA::cudart)
     set_property(TARGET cloth-wind-trajectory-optimization-plugin PROPERTY CXX_MODULE_STD ON)
     if (MSVC)
         target_link_options(cloth-wind-trajectory-optimization-plugin PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
+    endif ()
+
+    # Cloth Forward Example Plugin
+    add_library(cloth-forward-plugin SHARED ${CLOTH_FORWARD_DIR}/project.cpp)
+    target_link_libraries(cloth-forward-plugin PRIVATE xayah-spectra-plugin xayah-example-cloth-forward xayah-example-cloth-visualization-cuda CUDA::cudart)
+    set_property(TARGET cloth-forward-plugin PROPERTY CXX_MODULE_STD ON)
+    if (MSVC)
+        target_link_options(cloth-forward-plugin PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
     endif ()
 
     # Smoke Wind-Trajectory Optimization Example Plugin

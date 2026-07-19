@@ -25,7 +25,7 @@ namespace xayah::cloth::examples::wind_trajectory_optimization {
     } // namespace
 
     WindTrajectoryOptimizationTask::WindTrajectoryOptimizationTask(Configuration configuration, WindTrajectoryOptimizationOptions next_options)
-        : options(next_options), model(std::move(configuration)), context(model.make_context()), target_trajectory{}, estimated_trajectory{}, target_keyframes{
+        : options(next_options), model(std::move(configuration)), context(model.make_context(ExecutionMode::differentiable)), target_trajectory{}, estimated_trajectory{}, target_keyframes{
               {.x = 0.00F, .y = 0.0F, .z = 0.00F},
               {.x = 0.30F, .y = 0.0F, .z = 0.12F},
               {.x = 0.18F, .y = 0.0F, .z = -0.18F},

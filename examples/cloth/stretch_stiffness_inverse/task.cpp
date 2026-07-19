@@ -25,7 +25,7 @@ namespace xayah::cloth::examples::stretch_stiffness_inverse {
     } // namespace
 
     StretchStiffnessInverseTask::StretchStiffnessInverseTask(Configuration configuration, StretchStiffnessInverseOptions next_options)
-        : options(next_options), model(std::move(configuration)), context(model.make_context()), target_trajectory{}, estimated_trajectory{}, metrics{}, initial_state_(model.make_state(context)), controls_{}, estimated_parameters_(model.make_parameters(context)), trajectory_adjoint_{}, scalar_(static_cast<double*>(context.resource.allocate(sizeof(double)))), log_stiffness_{}, first_moment_{}, second_moment_{}, adam_step_{} {
+        : options(next_options), model(std::move(configuration)), context(model.make_context(ExecutionMode::differentiable)), target_trajectory{}, estimated_trajectory{}, metrics{}, initial_state_(model.make_state(context)), controls_{}, estimated_parameters_(model.make_parameters(context)), trajectory_adjoint_{}, scalar_(static_cast<double*>(context.resource.allocate(sizeof(double)))), log_stiffness_{}, first_moment_{}, second_moment_{}, adam_step_{} {
         context.upload(model.configuration.rest_positions, initial_state_.positions);
         context.upload(std::vector<Vector3>(model.configuration.rest_positions.size()), initial_state_.velocities);
         controls_.reserve(options.trajectory_steps);

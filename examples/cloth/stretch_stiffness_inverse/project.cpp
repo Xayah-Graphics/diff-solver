@@ -14,7 +14,7 @@
 
 #include <cuda_runtime_api.h>
 
-#include "project.h"
+#include "../visualization.h"
 
 import std;
 import xayah.cloth.data;
@@ -36,7 +36,6 @@ namespace xayah::cloth::examples::stretch_stiffness_inverse::project {
             ~ExternalBuffer() noexcept {
                 for (void* const mapped_buffer : mapped_buffers) if (mapped_buffer != nullptr && cudaFree(mapped_buffer) != cudaSuccess) std::terminate();
                 for (const cudaExternalMemory_t external_memory : external_memories_) if (external_memory != nullptr && cudaDestroyExternalMemory(external_memory) != cudaSuccess) std::terminate();
-                for (const cudaEvent_t ready_event : ready_events) if (ready_event != nullptr && cudaEventDestroy(ready_event) != cudaSuccess) std::terminate();
                 if (allocation.resource_id != 0u) {
                     try {
                         host_services_->release_gpu_buffer(allocation.resource_id);
@@ -55,10 +54,8 @@ namespace xayah::cloth::examples::stretch_stiffness_inverse::project {
                 plugin::GpuBufferAllocation next_allocation = host_services->request_gpu_buffer(kind, byte_size);
                 std::vector<cudaExternalMemory_t> external_memories{};
                 std::vector<void*> next_mapped_buffers{};
-                std::vector<cudaEvent_t> next_ready_events{};
                 external_memories.reserve(next_allocation.slots.size());
                 next_mapped_buffers.reserve(next_allocation.slots.size());
-                next_ready_events.reserve(next_allocation.slots.size());
                 try {
                     for (plugin::GpuBufferSlotAllocation& slot : next_allocation.slots) {
                         cudaExternalMemoryHandleDesc memory_descriptor{};
@@ -86,21 +83,13 @@ namespace xayah::cloth::examples::stretch_stiffness_inverse::project {
                             static_cast<void>(cudaDestroyExternalMemory(external_memory));
                             throw std::runtime_error(std::format("cudaExternalMemoryGetMappedBuffer failed: {}", cudaGetErrorString(status)));
                         }
-                        cudaEvent_t ready_event{};
-                        if (const cudaError_t status = cudaEventCreateWithFlags(&ready_event, cudaEventDisableTiming); status != cudaSuccess) {
-                            static_cast<void>(cudaFree(mapped_buffer));
-                            static_cast<void>(cudaDestroyExternalMemory(external_memory));
-                            throw std::runtime_error(std::format("cudaEventCreateWithFlags failed: {}", cudaGetErrorString(status)));
-                        }
                         external_memories.push_back(external_memory);
                         next_mapped_buffers.push_back(mapped_buffer);
-                        next_ready_events.push_back(ready_event);
                     }
                 } catch (...) {
                     for (plugin::GpuBufferSlotAllocation& slot : next_allocation.slots) if (slot.handle != 0u) close_imported_handle(slot);
                     for (void* const mapped_buffer : next_mapped_buffers) if (mapped_buffer != nullptr) static_cast<void>(cudaFree(mapped_buffer));
                     for (const cudaExternalMemory_t external_memory : external_memories) if (external_memory != nullptr) static_cast<void>(cudaDestroyExternalMemory(external_memory));
-                    for (const cudaEvent_t ready_event : next_ready_events) if (ready_event != nullptr) static_cast<void>(cudaEventDestroy(ready_event));
                     host_services->release_gpu_buffer(next_allocation.resource_id);
                     throw;
                 }
@@ -108,17 +97,11 @@ namespace xayah::cloth::examples::stretch_stiffness_inverse::project {
                 allocation = std::move(next_allocation);
                 external_memories_ = std::move(external_memories);
                 mapped_buffers = std::move(next_mapped_buffers);
-                ready_events = std::move(next_ready_events);
                 slot_revisions.assign(mapped_buffers.size(), 0u);
-            }
-
-            void record_ready(const std::uint32_t frame_slot_index, const cudaStream_t stream) {
-                if (const cudaError_t status = cudaEventRecord(ready_events[frame_slot_index], stream); status != cudaSuccess) throw std::runtime_error(std::format("cudaEventRecord failed: {}", cudaGetErrorString(status)));
             }
 
             plugin::GpuBufferAllocation allocation{};
             std::vector<void*> mapped_buffers{};
-            std::vector<cudaEvent_t> ready_events{};
             std::vector<std::uint64_t> slot_revisions{};
 
         private:

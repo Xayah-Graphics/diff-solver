@@ -74,7 +74,7 @@ namespace xayah::cloth {
 
     } // namespace
 
-    ExecutionContext::ExecutionContext(const Configuration& configuration, const Topology& topology) : resource_owner_(std::make_shared<cuda::Resource>()), resource(*resource_owner_), device_topology{}, integrated_state_{}, force_tangent_{}, integrated_state_tangent_{}, force_adjoint_{}, integrated_state_adjoint_{} {
+    ExecutionContext::ExecutionContext(const Configuration& configuration, const Topology& topology, const ExecutionMode mode) : resource_owner_(std::make_shared<cuda::Resource>()), resource(*resource_owner_), device_topology{}, integrated_state_{}, force_tangent_{}, integrated_state_tangent_{}, force_adjoint_{}, integrated_state_adjoint_{} {
         device_topology.stretch = {
             .first   = make_index_buffer(topology.stretch_springs.size()),
             .second  = make_index_buffer(topology.stretch_springs.size()),
@@ -139,11 +139,13 @@ namespace xayah::cloth {
         resource.copy_from_host(device_topology.anchor_positions.y.data, y.data(), y.size() * sizeof(float));
         resource.copy_from_host(device_topology.anchor_positions.z.data, z.data(), z.size() * sizeof(float));
 
-        integrated_state_         = {.positions = make_vector_field(configuration.rest_positions.size()), .velocities = make_vector_field(configuration.rest_positions.size())};
-        force_tangent_            = {.values = make_vector_field(configuration.rest_positions.size())};
-        integrated_state_tangent_ = {.positions = make_vector_field(configuration.rest_positions.size()), .velocities = make_vector_field(configuration.rest_positions.size())};
-        force_adjoint_            = {.values = make_vector_field(configuration.rest_positions.size())};
-        integrated_state_adjoint_ = {.positions = make_vector_field(configuration.rest_positions.size()), .velocities = make_vector_field(configuration.rest_positions.size())};
+        integrated_state_ = {.positions = make_vector_field(configuration.rest_positions.size()), .velocities = make_vector_field(configuration.rest_positions.size())};
+        if (mode == ExecutionMode::differentiable) {
+            force_tangent_ = {.values = make_vector_field(configuration.rest_positions.size())};
+            integrated_state_tangent_ = {.positions = make_vector_field(configuration.rest_positions.size()), .velocities = make_vector_field(configuration.rest_positions.size())};
+            force_adjoint_ = {.values = make_vector_field(configuration.rest_positions.size())};
+            integrated_state_adjoint_ = {.positions = make_vector_field(configuration.rest_positions.size()), .velocities = make_vector_field(configuration.rest_positions.size())};
+        }
         resource.synchronize();
     }
 
@@ -229,8 +231,8 @@ namespace xayah::cloth {
 
     Model::Model(Configuration next_configuration) : configuration(std::move(next_configuration)), topology(build_topology(configuration)) {}
 
-    ExecutionContext Model::make_context() const {
-        return ExecutionContext(configuration, topology);
+    ExecutionContext Model::make_context(const ExecutionMode mode) const {
+        return ExecutionContext(configuration, topology, mode);
     }
 
     State Model::make_state(ExecutionContext& context) const {
