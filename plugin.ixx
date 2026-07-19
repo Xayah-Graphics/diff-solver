@@ -21,6 +21,7 @@ export namespace xayah::spectra::plugin {
     };
 
     inline constexpr std::uint32_t GpuBufferKindViewportSegmentSet = 3u;
+    inline constexpr std::uint32_t GpuBufferKindVolumeChannel = 0u;
 
     struct HostServices {
         std::move_only_function<GpuBufferAllocation(std::uint32_t, std::uint64_t)> request_gpu_buffer{};
@@ -116,11 +117,54 @@ export namespace xayah::spectra::plugin {
         bool overlay{};
     };
 
+    enum class VolumeChannelFormat : std::uint32_t {
+        float32,
+        float32x2,
+        float32x3,
+        float32x4,
+    };
+
+    struct VolumeChannelBinding {
+        std::string channel_name{};
+        std::uint32_t component{};
+        float scale{1.0F};
+        float bias{};
+        bool enabled{};
+    };
+
+    struct Material {
+        std::string name{};
+        std::array<float, 4u> base_color{1.0F, 1.0F, 1.0F, 1.0F};
+        VolumeChannelBinding density{.channel_name = "density", .scale = 1.0F, .enabled = true};
+        VolumeChannelBinding emission{};
+        VolumeChannelBinding color{};
+    };
+
+    struct VolumeChannel {
+        std::string name{};
+        VolumeChannelFormat format{VolumeChannelFormat::float32};
+        std::uint64_t buffer_id{};
+        std::uintptr_t device_pointer{};
+        std::uintptr_t ready_event{};
+        std::uint64_t source_byte_size{};
+    };
+
+    struct VolumeGrid {
+        std::string name{};
+        std::array<std::uint32_t, 3u> dimensions{};
+        std::array<float, 3u> origin{};
+        std::array<float, 3u> voxel_size{1.0F, 1.0F, 1.0F};
+        std::vector<VolumeChannel> channels{};
+        std::string material_name{};
+    };
+
     struct Document {
         UpdateDescriptor update{};
         NavigationTarget navigation_target{};
         std::string active_camera_name{};
+        std::vector<Material> materials{};
         std::vector<Camera> cameras{};
+        std::vector<VolumeGrid> volumes{};
         std::vector<ViewportSegmentSet> viewport_segment_sets{};
     };
 
@@ -438,6 +482,31 @@ namespace xayah::spectra::plugin {
         float scale[3]{};
     };
 
+    struct SpectraSceneVolumeChannelBinding {
+        const char* channel_name{};
+        std::uint32_t component{};
+        float scale{};
+        float bias{};
+        std::uint32_t enabled{};
+    };
+
+    struct SpectraSceneMaterial {
+        const char* name{};
+        const char* model{};
+        const char* alpha_mode{};
+        float base_color[4]{};
+        float emission_color[3]{};
+        float emission_strength{};
+        float roughness{};
+        float metallic{};
+        float alpha_cutoff{};
+        std::uint32_t volume_mode{};
+        SpectraSceneVolumeChannelBinding volume_density{};
+        SpectraSceneVolumeChannelBinding volume_emission{};
+        SpectraSceneVolumeChannelBinding volume_color{};
+        SpectraSceneVolumeChannelBinding volume_debug_scalar{};
+    };
+
     struct SpectraSceneCameraImage {
         const std::uint8_t* rgba8{};
         std::uint64_t rgba8_size{};
@@ -464,6 +533,27 @@ namespace xayah::spectra::plugin {
         float far_plane{};
         std::uint32_t has_image{};
         SpectraSceneCameraImage image{};
+    };
+
+    struct SpectraSceneVolumeChannel {
+        const char* name{};
+        RawSpan values{};
+        std::uint32_t format{};
+        std::uint32_t source_kind{};
+        std::uint32_t index_encoding{};
+        std::uint64_t buffer_id{};
+        std::uintptr_t external_device_pointer{};
+        std::uintptr_t external_ready_event{};
+        std::uint64_t source_byte_size{};
+    };
+
+    struct SpectraSceneVolume {
+        const char* name{};
+        std::uint32_t dimensions[3]{};
+        float origin[3]{};
+        float voxel_size[3]{};
+        RawSpan channels{};
+        const char* material_name{};
     };
 
     struct SpectraSceneEntityRef {
@@ -575,7 +665,10 @@ namespace xayah::spectra::plugin {
     struct ExportState {
         struct SceneCache {
             Document document{};
+            std::vector<SpectraSceneMaterial> materials{};
             std::vector<SpectraSceneCamera> cameras{};
+            std::vector<std::vector<SpectraSceneVolumeChannel>> volume_channels{};
+            std::vector<SpectraSceneVolume> volumes{};
             std::vector<SpectraSceneViewportSegmentSet> segments{};
         };
 
@@ -667,6 +760,55 @@ namespace xayah::spectra::plugin {
             return view;
         }
 
+        static SpectraSceneVolumeChannelBinding volume_binding_view(const VolumeChannelBinding& binding) {
+            return SpectraSceneVolumeChannelBinding{
+                .channel_name = binding.channel_name.c_str(),
+                .component = binding.component,
+                .scale = binding.scale,
+                .bias = binding.bias,
+                .enabled = binding.enabled ? 1u : 0u,
+            };
+        }
+
+        static SpectraSceneMaterial material_view(const Material& material) {
+            SpectraSceneMaterial view{
+                .name = material.name.c_str(),
+                .model = "volume",
+                .alpha_mode = "blend",
+                .roughness = 0.5F,
+                .alpha_cutoff = 0.5F,
+                .volume_mode = 0u,
+                .volume_density = volume_binding_view(material.density),
+                .volume_emission = volume_binding_view(material.emission),
+                .volume_color = volume_binding_view(material.color),
+            };
+            std::ranges::copy(material.base_color, view.base_color);
+            return view;
+        }
+
+        static SpectraSceneVolumeChannel volume_channel_view(const VolumeChannel& channel) {
+            return SpectraSceneVolumeChannel{
+                .name = channel.name.c_str(),
+                .format = static_cast<std::uint32_t>(channel.format),
+                .source_kind = 1u,
+                .index_encoding = 0u,
+                .buffer_id = channel.buffer_id,
+                .external_device_pointer = channel.device_pointer,
+                .external_ready_event = channel.ready_event,
+                .source_byte_size = channel.source_byte_size,
+            };
+        }
+
+        static SpectraSceneVolume volume_view(const VolumeGrid& volume, std::vector<SpectraSceneVolumeChannel>& channels) {
+            SpectraSceneVolume view{.name = volume.name.c_str(), .material_name = volume.material_name.c_str()};
+            std::ranges::copy(volume.dimensions, view.dimensions);
+            std::ranges::copy(volume.origin, view.origin);
+            std::ranges::copy(volume.voxel_size, view.voxel_size);
+            for (const VolumeChannel& channel : volume.channels) channels.push_back(volume_channel_view(channel));
+            view.channels = RawSpan{.data = channels.data(), .count = channels.size()};
+            return view;
+        }
+
         static SpectraSceneViewportSegmentSet segment_view(const ViewportSegmentSet& segment) {
             return SpectraSceneViewportSegmentSet{
                 .name = segment.name.c_str(),
@@ -683,12 +825,20 @@ namespace xayah::spectra::plugin {
         }
 
         static SpectraSceneItems scene_items(SceneCache& cache) {
+            cache.materials.clear();
             cache.cameras.clear();
+            cache.volume_channels.clear();
+            cache.volumes.clear();
             cache.segments.clear();
+            for (const Material& material : cache.document.materials) cache.materials.push_back(material_view(material));
             for (const Camera& camera : cache.document.cameras) cache.cameras.push_back(camera_view(camera));
+            cache.volume_channels.resize(cache.document.volumes.size());
+            for (std::size_t index = 0u; index < cache.document.volumes.size(); ++index) cache.volumes.push_back(volume_view(cache.document.volumes[index], cache.volume_channels[index]));
             for (const ViewportSegmentSet& segment : cache.document.viewport_segment_sets) cache.segments.push_back(segment_view(segment));
             return SpectraSceneItems{
+                .materials = RawSpan{.data = cache.materials.data(), .count = cache.materials.size()},
                 .cameras = RawSpan{.data = cache.cameras.data(), .count = cache.cameras.size()},
+                .volumes = RawSpan{.data = cache.volumes.data(), .count = cache.volumes.size()},
                 .viewport_segment_sets = RawSpan{.data = cache.segments.data(), .count = cache.segments.size()},
             };
         }

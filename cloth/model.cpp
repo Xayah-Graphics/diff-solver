@@ -7,7 +7,7 @@ module xayah.cloth.model;
 import std;
 import xayah.cloth.data;
 import xayah.cloth.operators;
-import xayah.cloth.runtime;
+import xayah.cuda;
 
 namespace xayah::cloth {
 
@@ -74,7 +74,7 @@ namespace xayah::cloth {
 
     } // namespace
 
-    ExecutionContext::ExecutionContext(const Configuration& configuration, const Topology& topology) : resource_owner_(std::make_shared<Resource>()), resource(*resource_owner_), device_topology{}, integrated_state_{}, force_tangent_{}, integrated_state_tangent_{}, force_adjoint_{}, integrated_state_adjoint_{} {
+    ExecutionContext::ExecutionContext(const Configuration& configuration, const Topology& topology) : resource_owner_(std::make_shared<cuda::Resource>()), resource(*resource_owner_), device_topology{}, integrated_state_{}, force_tangent_{}, integrated_state_tangent_{}, force_adjoint_{}, integrated_state_adjoint_{} {
         device_topology.stretch = {
             .first   = make_index_buffer(topology.stretch_springs.size()),
             .second  = make_index_buffer(topology.stretch_springs.size()),
@@ -147,12 +147,12 @@ namespace xayah::cloth {
         resource.synchronize();
     }
 
-    void ExecutionContext::upload(const std::span<const float> source, Buffer<float>& destination) {
+    void ExecutionContext::upload(const std::span<const float> source, cuda::Buffer<float>& destination) {
         if (!source.empty()) resource.copy_from_host(destination.data, source.data(), source.size_bytes());
         resource.synchronize();
     }
 
-    void ExecutionContext::download(const Buffer<float>& source, const std::span<float> destination) {
+    void ExecutionContext::download(const cuda::Buffer<float>& source, const std::span<float> destination) {
         if (!destination.empty()) resource.copy_to_host(destination.data(), source.data, destination.size_bytes());
         resource.synchronize();
     }
@@ -191,19 +191,19 @@ namespace xayah::cloth {
         resource.synchronize();
     }
 
-    Buffer<float> ExecutionContext::make_scalar_buffer(const std::size_t size) const {
-        return Buffer<float>(resource_owner_, size);
+    cuda::Buffer<float> ExecutionContext::make_scalar_buffer(const std::size_t size) const {
+        return cuda::Buffer<float>(resource_owner_, size);
     }
 
-    Buffer<std::uint32_t> ExecutionContext::make_index_buffer(const std::size_t size) const {
-        return Buffer<std::uint32_t>(resource_owner_, size);
+    cuda::Buffer<std::uint32_t> ExecutionContext::make_index_buffer(const std::size_t size) const {
+        return cuda::Buffer<std::uint32_t>(resource_owner_, size);
     }
 
     VectorField ExecutionContext::make_vector_field(const std::size_t size) const {
         return {.x = make_scalar_buffer(size), .y = make_scalar_buffer(size), .z = make_scalar_buffer(size)};
     }
 
-    void ExecutionContext::zero(Buffer<float>& buffer) {
+    void ExecutionContext::zero(cuda::Buffer<float>& buffer) {
         if (buffer.size != 0) resource.zero(buffer.data, buffer.size * sizeof(float));
     }
 
@@ -213,7 +213,7 @@ namespace xayah::cloth {
         zero(field.z);
     }
 
-    void ExecutionContext::copy(const Buffer<float>& source, Buffer<float>& destination) {
+    void ExecutionContext::copy(const cuda::Buffer<float>& source, cuda::Buffer<float>& destination) {
         if (source.size != 0) resource.copy_device(destination.data, source.data, source.size * sizeof(float));
     }
 

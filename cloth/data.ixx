@@ -1,7 +1,7 @@
 export module xayah.cloth.data;
 
 import std;
-import xayah.cloth.runtime;
+import xayah.cuda;
 
 export namespace xayah::cloth {
 
@@ -45,9 +45,9 @@ export namespace xayah::cloth {
     };
 
     struct VectorField {
-        Buffer<float> x;
-        Buffer<float> y;
-        Buffer<float> z;
+        cuda::Buffer<float> x;
+        cuda::Buffer<float> y;
+        cuda::Buffer<float> z;
     };
 
     struct State {
@@ -60,13 +60,13 @@ export namespace xayah::cloth {
     };
 
     struct Parameters {
-        Buffer<float> masses;
-        Buffer<float> stretch_stiffnesses;
-        Buffer<float> stretch_dampings;
-        Buffer<float> stretch_rest_lengths;
-        Buffer<float> bending_stiffnesses;
-        Buffer<float> bending_dampings;
-        Buffer<float> bending_rest_lengths;
+        cuda::Buffer<float> masses;
+        cuda::Buffer<float> stretch_stiffnesses;
+        cuda::Buffer<float> stretch_dampings;
+        cuda::Buffer<float> stretch_rest_lengths;
+        cuda::Buffer<float> bending_stiffnesses;
+        cuda::Buffer<float> bending_dampings;
+        cuda::Buffer<float> bending_rest_lengths;
     };
 
     struct Forces {
@@ -83,13 +83,13 @@ export namespace xayah::cloth {
     };
 
     struct ParameterTangent {
-        Buffer<float> masses;
-        Buffer<float> stretch_stiffnesses;
-        Buffer<float> stretch_dampings;
-        Buffer<float> stretch_rest_lengths;
-        Buffer<float> bending_stiffnesses;
-        Buffer<float> bending_dampings;
-        Buffer<float> bending_rest_lengths;
+        cuda::Buffer<float> masses;
+        cuda::Buffer<float> stretch_stiffnesses;
+        cuda::Buffer<float> stretch_dampings;
+        cuda::Buffer<float> stretch_rest_lengths;
+        cuda::Buffer<float> bending_stiffnesses;
+        cuda::Buffer<float> bending_dampings;
+        cuda::Buffer<float> bending_rest_lengths;
     };
 
     struct ForceTangent {
@@ -106,13 +106,13 @@ export namespace xayah::cloth {
     };
 
     struct ParameterAdjoint {
-        Buffer<float> masses;
-        Buffer<float> stretch_stiffnesses;
-        Buffer<float> stretch_dampings;
-        Buffer<float> stretch_rest_lengths;
-        Buffer<float> bending_stiffnesses;
-        Buffer<float> bending_dampings;
-        Buffer<float> bending_rest_lengths;
+        cuda::Buffer<float> masses;
+        cuda::Buffer<float> stretch_stiffnesses;
+        cuda::Buffer<float> stretch_dampings;
+        cuda::Buffer<float> stretch_rest_lengths;
+        cuda::Buffer<float> bending_stiffnesses;
+        cuda::Buffer<float> bending_dampings;
+        cuda::Buffer<float> bending_rest_lengths;
     };
 
     struct ForceAdjoint {
@@ -124,18 +124,18 @@ export namespace xayah::cloth {
     };
 
     struct DeviceSpringTopology {
-        Buffer<std::uint32_t> first;
-        Buffer<std::uint32_t> second;
-        Buffer<std::uint32_t> offsets;
-        Buffer<std::uint32_t> indices;
-        Buffer<std::uint32_t> others;
-        Buffer<float> signs;
+        cuda::Buffer<std::uint32_t> first;
+        cuda::Buffer<std::uint32_t> second;
+        cuda::Buffer<std::uint32_t> offsets;
+        cuda::Buffer<std::uint32_t> indices;
+        cuda::Buffer<std::uint32_t> others;
+        cuda::Buffer<float> signs;
     };
 
     struct DeviceTopology {
         DeviceSpringTopology stretch;
         DeviceSpringTopology bending;
-        Buffer<std::uint32_t> anchor_mask;
+        cuda::Buffer<std::uint32_t> anchor_mask;
         VectorField anchor_positions;
     };
 

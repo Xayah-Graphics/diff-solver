@@ -7,7 +7,7 @@ module xayah.examples.cloth.stretch_stiffness_inverse;
 import std;
 import xayah.cloth.data;
 import xayah.cloth.model;
-import xayah.cloth.runtime;
+import xayah.cuda;
 import xayah.solver;
 
 namespace xayah::cloth::examples::stretch_stiffness_inverse {
@@ -77,7 +77,7 @@ namespace xayah::cloth::examples::stretch_stiffness_inverse {
         inverse_cuda::launch_fill(static_cast<cudaStream_t>(context.resource.native_stream), static_cast<std::uint32_t>(parameter_tangent.stretch_stiffnesses.size), metrics.stretch_stiffness, parameter_tangent.stretch_stiffnesses.data);
         const auto trajectory_tangent = xayah::solver::jvp(model, context, estimated_trajectory, std::span<const Control>{controls_}, estimated_parameters_, initial_state_tangent, std::span<const ControlTangent>{control_tangents}, parameter_tangent);
 
-        Resource& resource        = context.resource;
+        cuda::Resource& resource = context.resource;
         const cudaStream_t stream = static_cast<cudaStream_t>(resource.native_stream);
         resource.zero(scalar_, sizeof(double));
         for (std::size_t step = 1; step < trajectory_tangent.states.size(); ++step)
@@ -110,10 +110,10 @@ namespace xayah::cloth::examples::stretch_stiffness_inverse {
     }
 
     double StretchStiffnessInverseTask::trajectory_loss(const xayah::solver::Trajectory<::xayah::cloth::State, StepCache>& trajectory) {
-        Resource& resource              = context.resource;
-        const cudaStream_t stream       = static_cast<cudaStream_t>(resource.native_stream);
-        const std::uint32_t particles   = static_cast<std::uint32_t>(model.configuration.rest_positions.size());
-        const double normalization      = 1.0 / static_cast<double>(options.trajectory_steps * model.configuration.rest_positions.size());
+        cuda::Resource& resource = context.resource;
+        const cudaStream_t stream = static_cast<cudaStream_t>(resource.native_stream);
+        const std::uint32_t particles = static_cast<std::uint32_t>(model.configuration.rest_positions.size());
+        const double normalization = 1.0 / static_cast<double>(options.trajectory_steps * model.configuration.rest_positions.size());
         resource.zero(scalar_, sizeof(double));
         for (std::size_t step = 1; step < trajectory.states.size(); ++step) inverse_cuda::launch_position_loss(stream, particles, normalization, kernel_field(trajectory.states[step].positions), kernel_field(static_cast<const VectorField&>(target_trajectory.states[step].positions)), scalar_);
         double loss;
@@ -123,8 +123,8 @@ namespace xayah::cloth::examples::stretch_stiffness_inverse {
     }
 
     void StretchStiffnessInverseTask::evaluate(const xayah::solver::TapeMode tape_mode) {
-        Resource& resource            = context.resource;
-        const cudaStream_t stream     = static_cast<cudaStream_t>(resource.native_stream);
+        cuda::Resource& resource = context.resource;
+        const cudaStream_t stream = static_cast<cudaStream_t>(resource.native_stream);
         const std::uint32_t particles = static_cast<std::uint32_t>(model.configuration.rest_positions.size());
         const float stiffness         = static_cast<float>(std::exp(log_stiffness_));
         const float normalization     = 1.0F / static_cast<float>(options.trajectory_steps * model.configuration.rest_positions.size());

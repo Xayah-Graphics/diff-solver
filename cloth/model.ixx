@@ -3,7 +3,7 @@ export module xayah.cloth.model;
 import std;
 import xayah.cloth.data;
 import xayah.cloth.operators;
-import xayah.cloth.runtime;
+import xayah.cuda;
 
 export namespace xayah::cloth {
 
@@ -11,26 +11,26 @@ export namespace xayah::cloth {
 
     struct ExecutionContext {
     private:
-        std::shared_ptr<Resource> resource_owner_;
+        std::shared_ptr<cuda::Resource> resource_owner_;
         ExecutionContext(const Configuration& configuration, const Topology& topology);
 
     public:
-        Resource& resource;
+        cuda::Resource& resource;
         DeviceTopology device_topology;
 
-        void upload(std::span<const float> source, Buffer<float>& destination);
-        void download(const Buffer<float>& source, std::span<float> destination);
+        void upload(std::span<const float> source, cuda::Buffer<float>& destination);
+        void download(const cuda::Buffer<float>& source, std::span<float> destination);
         void upload(std::span<const Vector3> source, VectorField& destination);
         void download(const VectorField& source, std::span<Vector3> destination);
         void synchronize();
 
     private:
-        [[nodiscard]] Buffer<float> make_scalar_buffer(std::size_t size) const;
-        [[nodiscard]] Buffer<std::uint32_t> make_index_buffer(std::size_t size) const;
+        [[nodiscard]] cuda::Buffer<float> make_scalar_buffer(std::size_t size) const;
+        [[nodiscard]] cuda::Buffer<std::uint32_t> make_index_buffer(std::size_t size) const;
         [[nodiscard]] VectorField make_vector_field(std::size_t size) const;
-        void zero(Buffer<float>& buffer);
+        void zero(cuda::Buffer<float>& buffer);
         void zero(VectorField& field);
-        void copy(const Buffer<float>& source, Buffer<float>& destination);
+        void copy(const cuda::Buffer<float>& source, cuda::Buffer<float>& destination);
         void copy(const VectorField& source, VectorField& destination);
         void accumulate(const VectorField& source, VectorField& destination);
 

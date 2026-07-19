@@ -7,7 +7,7 @@ module xayah.examples.cloth.wind_trajectory_optimization;
 import std;
 import xayah.cloth.data;
 import xayah.cloth.model;
-import xayah.cloth.runtime;
+import xayah.cuda;
 import xayah.solver;
 
 namespace xayah::cloth::examples::wind_trajectory_optimization {
@@ -114,7 +114,7 @@ namespace xayah::cloth::examples::wind_trajectory_optimization {
         ParameterTangent parameter_tangent = model.make_parameter_tangent(context);
         const auto trajectory_tangent = xayah::solver::jvp(model, context, estimated_trajectory, std::span<const Control>{estimated_controls_}, parameters_, initial_state_tangent, std::span<const ControlTangent>{control_tangents}, parameter_tangent);
 
-        Resource& resource = context.resource;
+        cuda::Resource& resource = context.resource;
         resource.zero(scalar_, sizeof(double));
         for (std::size_t step = 1; step < trajectory_tangent.states.size(); ++step)
             task_cuda::launch_position_tangent_inner_product(stream, particles, kernel_field(static_cast<const VectorField&>(trajectory_adjoint_.states[step].positions)), kernel_field(trajectory_tangent.states[step].positions), scalar_);
@@ -177,7 +177,7 @@ namespace xayah::cloth::examples::wind_trajectory_optimization {
     }
 
     double WindTrajectoryOptimizationTask::trajectory_loss(const xayah::solver::Trajectory<::xayah::cloth::State, StepCache>& trajectory) {
-        Resource& resource = context.resource;
+        cuda::Resource& resource = context.resource;
         const cudaStream_t stream = static_cast<cudaStream_t>(resource.native_stream);
         const std::uint32_t particles = static_cast<std::uint32_t>(model.configuration.rest_positions.size());
         const double normalization = 1.0 / static_cast<double>(options.trajectory_steps * model.configuration.rest_positions.size());
@@ -191,7 +191,7 @@ namespace xayah::cloth::examples::wind_trajectory_optimization {
     }
 
     void WindTrajectoryOptimizationTask::evaluate(const xayah::solver::TapeMode tape_mode) {
-        Resource& resource = context.resource;
+        cuda::Resource& resource = context.resource;
         const cudaStream_t stream = static_cast<cudaStream_t>(resource.native_stream);
         const std::uint32_t particles = static_cast<std::uint32_t>(model.configuration.rest_positions.size());
         const float normalization = 1.0F / static_cast<float>(options.trajectory_steps * model.configuration.rest_positions.size());

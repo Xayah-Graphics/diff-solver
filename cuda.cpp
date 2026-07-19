@@ -2,11 +2,11 @@ module;
 
 #include <cuda_runtime_api.h>
 
-module xayah.cloth.runtime;
+module xayah.cuda;
 
 import std;
 
-namespace xayah::cloth {
+namespace xayah::cuda {
 
     Resource::Resource() : native_stream(nullptr), memory_pool_(nullptr) {
         int device;
@@ -65,30 +65,4 @@ namespace xayah::cloth {
         if (const cudaError_t result = cudaStreamSynchronize(static_cast<cudaStream_t>(native_stream)); result != cudaSuccess) throw std::runtime_error(cudaGetErrorString(result));
     }
 
-    template <BufferElement Element>
-    Buffer<Element>::Buffer() noexcept : data(nullptr), size(0), resource_() {}
-
-    template <BufferElement Element>
-    Buffer<Element>::Buffer(std::shared_ptr<Resource> resource, const std::size_t next_size) : data(next_size == 0 ? nullptr : static_cast<Element*>(resource->allocate(next_size * sizeof(Element)))), size(next_size), resource_(std::move(resource)) {}
-
-    template <BufferElement Element>
-    Buffer<Element>::~Buffer() noexcept {
-        if (data != nullptr) resource_->release(data);
-    }
-
-    template <BufferElement Element>
-    Buffer<Element>::Buffer(Buffer&& other) noexcept : data(std::exchange(other.data, nullptr)), size(std::exchange(other.size, 0)), resource_(std::move(other.resource_)) {}
-
-    template <BufferElement Element>
-    Buffer<Element>& Buffer<Element>::operator=(Buffer&& other) noexcept {
-        if (data != nullptr) resource_->release(data);
-        resource_ = std::move(other.resource_);
-        data      = std::exchange(other.data, nullptr);
-        size      = std::exchange(other.size, 0);
-        return *this;
-    }
-
-    template struct Buffer<float>;
-    template struct Buffer<std::uint32_t>;
-
-} // namespace xayah::cloth
+} // namespace xayah::cuda

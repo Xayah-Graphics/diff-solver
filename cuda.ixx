@@ -1,8 +1,8 @@
-export module xayah.cloth.runtime;
+export module xayah.cuda;
 
 import std;
 
-export namespace xayah::cloth {
+export namespace xayah::cuda {
 
     struct Resource {
         Resource();
@@ -28,18 +28,28 @@ export namespace xayah::cloth {
     };
 
     template <typename Element>
-    concept BufferElement = std::same_as<Element, float> || std::same_as<Element, std::uint32_t>;
-
-    template <BufferElement Element>
+        requires std::is_trivially_copyable_v<Element>
     struct Buffer {
-        Buffer() noexcept;
-        Buffer(std::shared_ptr<Resource> resource, std::size_t size);
-        ~Buffer() noexcept;
+        Buffer() noexcept : data(nullptr), size(0), resource_() {}
+
+        Buffer(std::shared_ptr<Resource> resource, const std::size_t next_size) : data(next_size == 0u ? nullptr : static_cast<Element*>(resource->allocate(next_size * sizeof(Element)))), size(next_size), resource_(std::move(resource)) {}
+
+        ~Buffer() noexcept {
+            if (data != nullptr) resource_->release(data);
+        }
 
         Buffer(const Buffer&)            = delete;
         Buffer& operator=(const Buffer&) = delete;
-        Buffer(Buffer&& other) noexcept;
-        Buffer& operator=(Buffer&& other) noexcept;
+
+        Buffer(Buffer&& other) noexcept : data(std::exchange(other.data, nullptr)), size(std::exchange(other.size, 0u)), resource_(std::move(other.resource_)) {}
+
+        Buffer& operator=(Buffer&& other) noexcept {
+            if (data != nullptr) resource_->release(data);
+            resource_ = std::move(other.resource_);
+            data      = std::exchange(other.data, nullptr);
+            size      = std::exchange(other.size, 0u);
+            return *this;
+        }
 
         Element* data;
         std::size_t size;
@@ -48,7 +58,4 @@ export namespace xayah::cloth {
         std::shared_ptr<Resource> resource_;
     };
 
-    extern template struct Buffer<float>;
-    extern template struct Buffer<std::uint32_t>;
-
-} // namespace xayah::cloth
+} // namespace xayah::cuda
