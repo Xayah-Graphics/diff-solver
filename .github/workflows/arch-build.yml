@@ -14,19 +14,18 @@ jobs:
 
     steps:
       - name: Install build tools
-        run: pacman -Syu --noconfirm clang cmake cuda git ninja
+        run: pacman -Syu --noconfirm cmake cuda git ninja
 
       - name: Check out repository
         uses: actions/checkout@v6
 
       - name: Configure
-        env:
-          CC: clang
-          CXX: clang++
         run: |
           . /etc/profile
           cmake -S . -B cmake-build-release -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_COMPILER="$NVCC_CCBIN" \
+            -DCMAKE_CUDA_HOST_COMPILER="$NVCC_CCBIN" \
             -DDIFF_SOLVER_BUILD_EXAMPLES=ON \
             -DDIFF_SOLVER_BUILD_SPECTRA_PLUGINS=ON
 
