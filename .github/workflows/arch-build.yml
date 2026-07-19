@@ -24,7 +24,7 @@ jobs:
           CC: clang
           CXX: clang++
         run: |
-          . /etc/profile.d/cuda.sh
+          . /etc/profile
           cmake -S . -B cmake-build-release -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DDIFF_SOLVER_BUILD_EXAMPLES=ON \
