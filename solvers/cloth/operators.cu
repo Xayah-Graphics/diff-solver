@@ -1,4 +1,4 @@
-#include "kernels.cuh"
+#include "operators.h"
 #include <cuda_runtime.h>
 #include <stdexcept>
 

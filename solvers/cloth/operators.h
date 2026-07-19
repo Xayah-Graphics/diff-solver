@@ -1,5 +1,5 @@
-#ifndef XAYAH_CLOTH_KERNELS_CUH
-#define XAYAH_CLOTH_KERNELS_CUH
+#ifndef XAYAH_CLOTH_OPERATORS_H
+#define XAYAH_CLOTH_OPERATORS_H
 
 #include <cstdint>
 

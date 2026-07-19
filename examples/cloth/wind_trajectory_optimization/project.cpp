@@ -12,9 +12,8 @@
 #include <unistd.h>
 #endif
 
+#include "project.h"
 #include <cuda_runtime_api.h>
-
-#include "../visualization.h"
 
 import std;
 import xayah.cloth.data;
@@ -34,8 +33,10 @@ namespace xayah::cloth::examples::wind_trajectory_optimization::project {
             ExternalBuffer() = default;
 
             ~ExternalBuffer() noexcept {
-                for (void* const mapped_buffer : mapped_buffers) if (mapped_buffer != nullptr && cudaFree(mapped_buffer) != cudaSuccess) std::terminate();
-                for (const cudaExternalMemory_t external_memory : external_memories_) if (external_memory != nullptr && cudaDestroyExternalMemory(external_memory) != cudaSuccess) std::terminate();
+                for (void* const mapped_buffer : mapped_buffers)
+                    if (mapped_buffer != nullptr && cudaFree(mapped_buffer) != cudaSuccess) std::terminate();
+                for (const cudaExternalMemory_t external_memory : external_memories_)
+                    if (external_memory != nullptr && cudaDestroyExternalMemory(external_memory) != cudaSuccess) std::terminate();
                 if (allocation.resource_id != 0u) {
                     try {
                         host_services_->release_gpu_buffer(allocation.resource_id);
@@ -45,10 +46,10 @@ namespace xayah::cloth::examples::wind_trajectory_optimization::project {
                 }
             }
 
-            ExternalBuffer(const ExternalBuffer&) = delete;
-            ExternalBuffer(ExternalBuffer&&) = delete;
+            ExternalBuffer(const ExternalBuffer&)            = delete;
+            ExternalBuffer(ExternalBuffer&&)                 = delete;
             ExternalBuffer& operator=(const ExternalBuffer&) = delete;
-            ExternalBuffer& operator=(ExternalBuffer&&) = delete;
+            ExternalBuffer& operator=(ExternalBuffer&&)      = delete;
 
             void create(std::shared_ptr<plugin::HostServices> host_services, const std::uint32_t kind, const std::uint64_t byte_size) {
                 plugin::GpuBufferAllocation next_allocation = host_services->request_gpu_buffer(kind, byte_size);
@@ -61,10 +62,10 @@ namespace xayah::cloth::examples::wind_trajectory_optimization::project {
                         cudaExternalMemoryHandleDesc memory_descriptor{};
                         memory_descriptor.size = next_allocation.byte_size;
 #if defined(_WIN32)
-                        memory_descriptor.type = cudaExternalMemoryHandleTypeOpaqueWin32;
+                        memory_descriptor.type                = cudaExternalMemoryHandleTypeOpaqueWin32;
                         memory_descriptor.handle.win32.handle = reinterpret_cast<void*>(slot.handle);
 #else
-                        memory_descriptor.type = cudaExternalMemoryHandleTypeOpaqueFd;
+                        memory_descriptor.type      = cudaExternalMemoryHandleTypeOpaqueFd;
                         memory_descriptor.handle.fd = static_cast<int>(slot.handle);
 #endif
                         cudaExternalMemory_t external_memory{};
@@ -72,8 +73,10 @@ namespace xayah::cloth::examples::wind_trajectory_optimization::project {
 #if defined(_WIN32)
                         close_imported_handle(slot);
 #else
-                        if (import_status == cudaSuccess) slot.handle = 0u;
-                        else close_imported_handle(slot);
+                        if (import_status == cudaSuccess)
+                            slot.handle = 0u;
+                        else
+                            close_imported_handle(slot);
 #endif
                         if (import_status != cudaSuccess) throw std::runtime_error(std::format("cudaImportExternalMemory failed: {}", cudaGetErrorString(import_status)));
                         cudaExternalMemoryBufferDesc buffer_descriptor{};
@@ -87,16 +90,19 @@ namespace xayah::cloth::examples::wind_trajectory_optimization::project {
                         next_mapped_buffers.push_back(mapped_buffer);
                     }
                 } catch (...) {
-                    for (plugin::GpuBufferSlotAllocation& slot : next_allocation.slots) if (slot.handle != 0u) close_imported_handle(slot);
-                    for (void* const mapped_buffer : next_mapped_buffers) if (mapped_buffer != nullptr) static_cast<void>(cudaFree(mapped_buffer));
-                    for (const cudaExternalMemory_t external_memory : external_memories) if (external_memory != nullptr) static_cast<void>(cudaDestroyExternalMemory(external_memory));
+                    for (plugin::GpuBufferSlotAllocation& slot : next_allocation.slots)
+                        if (slot.handle != 0u) close_imported_handle(slot);
+                    for (void* const mapped_buffer : next_mapped_buffers)
+                        if (mapped_buffer != nullptr) static_cast<void>(cudaFree(mapped_buffer));
+                    for (const cudaExternalMemory_t external_memory : external_memories)
+                        if (external_memory != nullptr) static_cast<void>(cudaDestroyExternalMemory(external_memory));
                     host_services->release_gpu_buffer(next_allocation.resource_id);
                     throw;
                 }
-                host_services_ = std::move(host_services);
-                allocation = std::move(next_allocation);
+                host_services_     = std::move(host_services);
+                allocation         = std::move(next_allocation);
                 external_memories_ = std::move(external_memories);
-                mapped_buffers = std::move(next_mapped_buffers);
+                mapped_buffers     = std::move(next_mapped_buffers);
                 slot_revisions.assign(mapped_buffers.size(), 0u);
             }
 
@@ -145,10 +151,10 @@ namespace xayah::cloth::examples::wind_trajectory_optimization::project {
         std::uint64_t revision{1u};
 
         Project(ProjectOptions options, Configuration configuration, std::shared_ptr<plugin::HostServices> host_services);
-        Project(const Project&) = delete;
-        Project(Project&&) = delete;
+        Project(const Project&)            = delete;
+        Project(Project&&)                 = delete;
         Project& operator=(const Project&) = delete;
-        Project& operator=(Project&&) = delete;
+        Project& operator=(Project&&)      = delete;
 
         [[nodiscard]] static const plugin::PluginDefinition<Project>& plugin();
         [[nodiscard]] static Project open(plugin::OpenContext context);
@@ -191,16 +197,16 @@ namespace xayah::cloth::examples::wind_trajectory_optimization::project {
         Configuration make_configuration(const ProjectOptions& options) {
             Configuration configuration{
                 .rest_positions = std::vector<Vector3>(static_cast<std::size_t>(options.rows) * options.columns),
-                .triangles = {},
-                .anchors = std::vector<std::optional<Vector3>>(static_cast<std::size_t>(options.rows) * options.columns),
-                .gravity = {.x = 0.0F, .y = options.gravity_y, .z = 0.0F},
-                .time_step = options.time_step,
+                .triangles      = {},
+                .anchors        = std::vector<std::optional<Vector3>>(static_cast<std::size_t>(options.rows) * options.columns),
+                .gravity        = {.x = 0.0F, .y = options.gravity_y, .z = 0.0F},
+                .time_step      = options.time_step,
             };
             const float spacing_x = options.width / static_cast<float>(options.columns - 1u);
             const float spacing_z = options.height / static_cast<float>(options.rows - 1u);
             for (std::uint32_t row = 0u; row < options.rows; ++row) {
                 for (std::uint32_t column = 0u; column < options.columns; ++column) {
-                    const std::uint32_t vertex = row * options.columns + column;
+                    const std::uint32_t vertex           = row * options.columns + column;
                     configuration.rest_positions[vertex] = {.x = static_cast<float>(column) * spacing_x, .y = 0.0F, .z = static_cast<float>(row) * spacing_z};
                     if (row == 0u) configuration.anchors[vertex] = configuration.rest_positions[vertex];
                 }
@@ -208,9 +214,9 @@ namespace xayah::cloth::examples::wind_trajectory_optimization::project {
             configuration.triangles.reserve(static_cast<std::size_t>(options.rows - 1u) * (options.columns - 1u) * 2u);
             for (std::uint32_t row = 0u; row + 1u < options.rows; ++row) {
                 for (std::uint32_t column = 0u; column + 1u < options.columns; ++column) {
-                    const std::uint32_t top_left = row * options.columns + column;
-                    const std::uint32_t top_right = top_left + 1u;
-                    const std::uint32_t bottom_left = top_left + options.columns;
+                    const std::uint32_t top_left     = row * options.columns + column;
+                    const std::uint32_t top_right    = top_left + 1u;
+                    const std::uint32_t bottom_left  = top_left + options.columns;
                     const std::uint32_t bottom_right = bottom_left + 1u;
                     if ((row + column) % 2u == 0u) {
                         configuration.triangles.push_back({.first = top_left, .second = top_right, .third = bottom_right});
@@ -239,22 +245,22 @@ namespace xayah::cloth::examples::wind_trajectory_optimization::project {
                 forward[0] * right[1] - forward[1] * right[0],
             };
             return plugin::Camera{
-                .name = "Overview",
-                .position = position,
-                .right = right,
-                .down = down,
-                .forward = forward,
+                .name                 = "Overview",
+                .position             = position,
+                .right                = right,
+                .down                 = down,
+                .forward              = forward,
                 .vertical_fov_degrees = 42.0F,
-                .near_plane = 0.01F,
-                .far_plane = height * 12.0F,
+                .near_plane           = 0.01F,
+                .far_plane            = height * 12.0F,
             };
         }
 
         Vector3 interpolate_wind(const std::span<const Vector3> keyframes, const std::size_t control_step, const std::size_t trajectory_steps) {
-            const double coordinate = static_cast<double>(control_step) * static_cast<double>(keyframes.size() - 1u) / static_cast<double>(trajectory_steps - 1u);
-            const std::size_t first = (std::min)(static_cast<std::size_t>(coordinate), keyframes.size() - 2u);
+            const double coordinate  = static_cast<double>(control_step) * static_cast<double>(keyframes.size() - 1u) / static_cast<double>(trajectory_steps - 1u);
+            const std::size_t first  = (std::min) (static_cast<std::size_t>(coordinate), keyframes.size() - 2u);
             const std::size_t second = first + 1u;
-            const float weight = static_cast<float>(coordinate - static_cast<double>(first));
+            const float weight       = static_cast<float>(coordinate - static_cast<double>(first));
             return {
                 .x = (1.0F - weight) * keyframes[first].x + weight * keyframes[second].x,
                 .y = 0.0F,
@@ -265,28 +271,30 @@ namespace xayah::cloth::examples::wind_trajectory_optimization::project {
     } // namespace
 
     Project::Project(ProjectOptions options, Configuration configuration, std::shared_ptr<plugin::HostServices> host_services)
-        : options_(options), task_(std::move(configuration), WindTrajectoryOptimizationOptions{
-              .mass = options_.mass,
-              .stretch_stiffness = options_.stretch_stiffness,
-              .stretch_damping = options_.stretch_damping,
-              .bending_stiffness = options_.bending_stiffness,
-              .bending_damping = options_.bending_damping,
-              .trajectory_steps = options_.trajectory_steps,
-              .adam_learning_rate = options_.adam_learning_rate,
-          }), visualization_parameters_(task_.model.make_parameters(task_.context)), trajectory_step_(options_.trajectory_steps) {
+        : options_(options), task_(std::move(configuration),
+                                 WindTrajectoryOptimizationOptions{
+                                     .mass               = options_.mass,
+                                     .stretch_stiffness  = options_.stretch_stiffness,
+                                     .stretch_damping    = options_.stretch_damping,
+                                     .bending_stiffness  = options_.bending_stiffness,
+                                     .bending_damping    = options_.bending_damping,
+                                     .trajectory_steps   = options_.trajectory_steps,
+                                     .adam_learning_rate = options_.adam_learning_rate,
+                                 }),
+          visualization_parameters_(task_.model.allocate_parameters(task_.context)), trajectory_step_(options_.trajectory_steps) {
         std::vector<float> stretch_rest_lengths(task_.model.topology.stretch_springs.size());
         for (std::size_t spring = 0u; spring < stretch_rest_lengths.size(); ++spring) stretch_rest_lengths[spring] = task_.model.topology.stretch_springs[spring].rest_length;
-        task_.context.upload(stretch_rest_lengths, visualization_parameters_.stretch_rest_lengths);
+        upload(*task_.context.resource, stretch_rest_lengths, visualization_parameters_.stretch_rest_lengths);
         std::vector<float> bending_rest_lengths(task_.model.topology.bending_springs.size());
         for (std::size_t spring = 0u; spring < bending_rest_lengths.size(); ++spring) bending_rest_lengths[spring] = task_.model.topology.bending_springs[spring].rest_length;
-        task_.context.upload(bending_rest_lengths, visualization_parameters_.bending_rest_lengths);
+        upload(*task_.context.resource, bending_rest_lengths, visualization_parameters_.bending_rest_lengths);
         target_stretch_segments_.create(host_services, plugin::GpuBufferKindViewportSegmentSet, task_.model.topology.stretch_springs.size() * segment_bytes);
         estimated_stretch_segments_.create(host_services, plugin::GpuBufferKindViewportSegmentSet, task_.model.topology.stretch_springs.size() * segment_bytes);
         estimated_bending_segments_.create(host_services, plugin::GpuBufferKindViewportSegmentSet, task_.model.topology.bending_springs.size() * segment_bytes);
         target_wind_segments_.create(host_services, plugin::GpuBufferKindViewportSegmentSet, 3u * segment_bytes);
         estimated_wind_segments_.create(host_services, plugin::GpuBufferKindViewportSegmentSet, 3u * segment_bytes);
         for (std::size_t frame_slot = 0u; frame_slot < target_stretch_segments_.mapped_buffers.size(); ++frame_slot) write_visualization(static_cast<std::uint32_t>(frame_slot));
-        task_.context.synchronize();
+        task_.context.resource->synchronize();
     }
 
     const plugin::PluginDefinition<Project>& Project::plugin() {
@@ -315,44 +323,44 @@ namespace xayah::cloth::examples::wind_trajectory_optimization::project {
                 .actions = {plugin::action<Project>("reset", "Reset Optimization", "Restore zero wind keyframes and the Adam state on the next safe frame-slot update.", "optimization", [](Project& project) { project.reset_pending_ = true; })},
                 .settings = {
                     plugin::unsigned_integer_setting<Project>("trajectory_frame", "Trajectory Frame", 120u, "display", 0u, 120u, 1u, [](Project& project, const std::uint64_t value) {
-                        project.trajectory_step_ = static_cast<std::uint32_t>(value);
-                        ++project.content_revision_;
+                                project.trajectory_step_                                                                                                                                               = static_cast<std::uint32_t>(value);
+                                ++project.content_revision_;
                     }),
                     plugin::toggle<Project>("show_target", "Show Target", true, "display", [](Project& project, const bool value) {
-                        project.show_target_ = value;
-                        ++project.revision;
+                                project.show_target_ = value;
+                                ++project.revision;
                     }),
                     plugin::toggle<Project>("show_estimate", "Show Estimate", true, "display", [](Project& project, const bool value) {
-                        project.show_estimate_ = value;
-                        ++project.revision;
+                                project.show_estimate_ = value;
+                                ++project.revision;
                     }),
                     plugin::toggle<Project>("show_wind", "Show Wind", true, "display", [](Project& project, const bool value) {
-                        project.show_wind_ = value;
-                        ++project.revision;
+                                project.show_wind_ = value;
+                                ++project.revision;
                     }),
                     plugin::toggle<Project>("show_bending", "Show Bending", false, "display", [](Project& project, const bool value) {
-                        project.show_bending_ = value;
-                        ++project.revision;
+                                project.show_bending_ = value;
+                                ++project.revision;
                     }),
                     plugin::float_setting<Project>("stretch_width", "Stretch Width", 2.0F, "display", 0.25F, 8.0F, 0.25F, [](Project& project, const float value) {
-                        project.stretch_width_ = value;
-                        ++project.content_revision_;
+                                project.stretch_width_ = value;
+                                ++project.content_revision_;
                     }),
                     plugin::float_setting<Project>("bending_width", "Bending Width", 1.0F, "display", 0.25F, 8.0F, 0.25F, [](Project& project, const float value) {
-                        project.bending_width_ = value;
-                        ++project.content_revision_;
+                                project.bending_width_ = value;
+                                ++project.content_revision_;
                     }),
                     plugin::float_setting<Project>("wind_width", "Wind Width", 3.0F, "display", 0.25F, 8.0F, 0.25F, [](Project& project, const float value) {
-                        project.wind_width_ = value;
-                        ++project.content_revision_;
+                                project.wind_width_ = value;
+                                ++project.content_revision_;
                     }),
                     plugin::float_setting<Project>("wind_scale", "Wind Scale", 2.0F, "display", 0.25F, 8.0F, 0.25F, [](Project& project, const float value) {
-                        project.wind_scale_ = value;
-                        ++project.content_revision_;
+                                project.wind_scale_ = value;
+                                ++project.content_revision_;
                     }),
                     plugin::float_setting<Project>("strain_range", "Strain Range", 0.10F, "display", 0.01F, 0.50F, 0.01F, [](Project& project, const float value) {
-                        project.strain_range_ = value;
-                        ++project.content_revision_;
+                                project.strain_range_ = value;
+                                ++project.content_revision_;
                     }),
                 },
             };
@@ -364,20 +372,34 @@ namespace xayah::cloth::examples::wind_trajectory_optimization::project {
     Project Project::open(plugin::OpenContext context) {
         ProjectOptions options{};
         for (const plugin::Option& option : context.options) {
-            if (option.key == "rows") options.rows = static_cast<std::uint32_t>(std::stoul(option.value));
-            else if (option.key == "columns") options.columns = static_cast<std::uint32_t>(std::stoul(option.value));
-            else if (option.key == "width") options.width = std::stof(option.value);
-            else if (option.key == "height") options.height = std::stof(option.value);
-            else if (option.key == "mass") options.mass = std::stof(option.value);
-            else if (option.key == "stretch_stiffness") options.stretch_stiffness = std::stof(option.value);
-            else if (option.key == "stretch_damping") options.stretch_damping = std::stof(option.value);
-            else if (option.key == "bending_stiffness") options.bending_stiffness = std::stof(option.value);
-            else if (option.key == "bending_damping") options.bending_damping = std::stof(option.value);
-            else if (option.key == "gravity_y") options.gravity_y = std::stof(option.value);
-            else if (option.key == "time_step") options.time_step = std::stof(option.value);
-            else if (option.key == "trajectory_steps") options.trajectory_steps = static_cast<std::uint32_t>(std::stoul(option.value));
-            else if (option.key == "adam_learning_rate") options.adam_learning_rate = std::stof(option.value);
-            else if (option.key == "iterations_per_update") options.iterations_per_update = static_cast<std::uint32_t>(std::stoul(option.value));
+            if (option.key == "rows")
+                options.rows = static_cast<std::uint32_t>(std::stoul(option.value));
+            else if (option.key == "columns")
+                options.columns = static_cast<std::uint32_t>(std::stoul(option.value));
+            else if (option.key == "width")
+                options.width = std::stof(option.value);
+            else if (option.key == "height")
+                options.height = std::stof(option.value);
+            else if (option.key == "mass")
+                options.mass = std::stof(option.value);
+            else if (option.key == "stretch_stiffness")
+                options.stretch_stiffness = std::stof(option.value);
+            else if (option.key == "stretch_damping")
+                options.stretch_damping = std::stof(option.value);
+            else if (option.key == "bending_stiffness")
+                options.bending_stiffness = std::stof(option.value);
+            else if (option.key == "bending_damping")
+                options.bending_damping = std::stof(option.value);
+            else if (option.key == "gravity_y")
+                options.gravity_y = std::stof(option.value);
+            else if (option.key == "time_step")
+                options.time_step = std::stof(option.value);
+            else if (option.key == "trajectory_steps")
+                options.trajectory_steps = static_cast<std::uint32_t>(std::stoul(option.value));
+            else if (option.key == "adam_learning_rate")
+                options.adam_learning_rate = std::stof(option.value);
+            else if (option.key == "iterations_per_update")
+                options.iterations_per_update = static_cast<std::uint32_t>(std::stoul(option.value));
         }
         Configuration configuration = make_configuration(options);
         return Project(options, std::move(configuration), std::move(context.host_services));
@@ -385,7 +407,7 @@ namespace xayah::cloth::examples::wind_trajectory_optimization::project {
 
     void Project::update(const plugin::UpdateInfo& update) {
         this->current_frame_slot_ = update.frame_slot_index;
-        this->update_running_ = update.update_running;
+        this->update_running_     = update.update_running;
         if (this->reset_pending_) {
             this->task_.reset();
             this->reset_pending_ = false;
@@ -403,13 +425,14 @@ namespace xayah::cloth::examples::wind_trajectory_optimization::project {
     void Project::write_document(plugin::SceneBuilder& scene) const {
         scene.set_document(plugin::Document{
             .update = {.enabled = true, .initial_running = false, .step_delta_seconds = 1.0 / 60.0},
-            .navigation_target = {
-                .revision = 1u,
-                .focus = {this->options_.width * 0.5F, -this->options_.height * 0.45F, this->options_.height * 0.5F},
-                .bounds_minimum = {-this->options_.width * 0.75F, -this->options_.height * 1.25F, -this->options_.height * 0.1F},
-                .bounds_maximum = {this->options_.width * 1.1F, this->options_.height * 0.25F, this->options_.height * 1.1F},
-                .navigation_up = {0.0F, 1.0F, 0.0F},
-            },
+            .navigation_target =
+                {
+                    .revision       = 1u,
+                    .focus          = {this->options_.width * 0.5F, -this->options_.height * 0.45F, this->options_.height * 0.5F},
+                    .bounds_minimum = {-this->options_.width * 0.75F, -this->options_.height * 1.25F, -this->options_.height * 0.1F},
+                    .bounds_maximum = {this->options_.width * 1.1F, this->options_.height * 0.25F, this->options_.height * 1.1F},
+                    .navigation_up  = {0.0F, 1.0F, 0.0F},
+                },
             .active_camera_name = "Overview",
         });
     }
@@ -428,11 +451,10 @@ namespace xayah::cloth::examples::wind_trajectory_optimization::project {
 
     void Project::write_controls(plugin::ControlBuilder& controls) const {
         const WindTrajectoryOptimizationMetrics& metrics = this->task_.metrics;
-        const std::size_t control_step = std::min<std::size_t>(this->trajectory_step_, this->options_.trajectory_steps - 1u);
-        const Vector3 target_wind = interpolate_wind(this->task_.target_keyframes, control_step, this->options_.trajectory_steps);
-        const Vector3 estimated_wind = interpolate_wind(this->task_.estimated_keyframes, control_step, this->options_.trajectory_steps);
-        controls
-            .phase(this->update_running_ ? "Optimizing" : "Paused")
+        const std::size_t control_step                   = std::min<std::size_t>(this->trajectory_step_, this->options_.trajectory_steps - 1u);
+        const Vector3 target_wind                        = interpolate_wind(this->task_.target_keyframes, control_step, this->options_.trajectory_steps);
+        const Vector3 estimated_wind                     = interpolate_wind(this->task_.estimated_keyframes, control_step, this->options_.trajectory_steps);
+        controls.phase(this->update_running_ ? "Optimizing" : "Paused")
             .headline("Differentiable wind-trajectory optimization")
             .message("The full target and estimated trajectories, loss seeds, VJP, and segment instances remain on the GPU.")
             .metric("iteration", "Iteration", std::to_string(metrics.iteration), "optimization")
@@ -462,82 +484,26 @@ namespace xayah::cloth::examples::wind_trajectory_optimization::project {
     }
 
     void Project::write_visualization(const std::uint32_t frame_slot_index) {
-        ExecutionContext& context = this->task_.context;
-        const Model& model = this->task_.model;
-        const cudaStream_t stream = static_cast<cudaStream_t>(context.resource.native_stream);
-        const DeviceTopology& topology = context.device_topology;
-        const ::xayah::cloth::State& target_state = this->task_.target_trajectory.states[this->trajectory_step_];
+        ExecutionContext& context                    = this->task_.context;
+        const Model& model                           = this->task_.model;
+        const cudaStream_t stream                    = static_cast<cudaStream_t>(context.resource->native_stream);
+        const DeviceTopology& topology               = context.device_topology;
+        const ::xayah::cloth::State& target_state    = this->task_.target_trajectory.states[this->trajectory_step_];
         const ::xayah::cloth::State& estimated_state = this->task_.estimated_trajectory.states[this->trajectory_step_];
-        const std::size_t control_step = std::min<std::size_t>(this->trajectory_step_, this->options_.trajectory_steps - 1u);
-        const Vector3 target_wind = interpolate_wind(this->task_.target_keyframes, control_step, this->options_.trajectory_steps);
-        const Vector3 estimated_wind = interpolate_wind(this->task_.estimated_keyframes, control_step, this->options_.trajectory_steps);
-        visualization_cuda::launch_segments(
-            stream,
-            static_cast<std::uint32_t>(model.topology.stretch_springs.size()),
-            target_state.positions.x.data,
-            target_state.positions.y.data,
-            target_state.positions.z.data,
-            topology.stretch.first.data,
-            topology.stretch.second.data,
-            this->visualization_parameters_.stretch_rest_lengths.data,
-            1.0F,
-            this->strain_range_,
-            visualization_cuda::SegmentStyle::target,
-            this->target_stretch_segments_.mapped_buffers[frame_slot_index]);
-        visualization_cuda::launch_segments(
-            stream,
-            static_cast<std::uint32_t>(model.topology.stretch_springs.size()),
-            estimated_state.positions.x.data,
-            estimated_state.positions.y.data,
-            estimated_state.positions.z.data,
-            topology.stretch.first.data,
-            topology.stretch.second.data,
-            this->visualization_parameters_.stretch_rest_lengths.data,
-            this->stretch_width_,
-            this->strain_range_,
-            visualization_cuda::SegmentStyle::estimate,
-            this->estimated_stretch_segments_.mapped_buffers[frame_slot_index]);
-        visualization_cuda::launch_segments(
-            stream,
-            static_cast<std::uint32_t>(model.topology.bending_springs.size()),
-            estimated_state.positions.x.data,
-            estimated_state.positions.y.data,
-            estimated_state.positions.z.data,
-            topology.bending.first.data,
-            topology.bending.second.data,
-            this->visualization_parameters_.bending_rest_lengths.data,
-            this->bending_width_,
-            this->strain_range_,
-            visualization_cuda::SegmentStyle::bending,
-            this->estimated_bending_segments_.mapped_buffers[frame_slot_index]);
-        visualization_cuda::launch_wind_arrow(
-            stream,
-            -0.42F * this->options_.width,
-            -0.12F * this->options_.height,
-            0.50F * this->options_.height,
-            target_wind.x,
-            target_wind.z,
-            this->wind_scale_,
-            this->wind_width_,
-            visualization_cuda::SegmentStyle::target_wind,
-            this->target_wind_segments_.mapped_buffers[frame_slot_index]);
-        visualization_cuda::launch_wind_arrow(
-            stream,
-            -0.42F * this->options_.width,
-            -0.12F * this->options_.height,
-            0.50F * this->options_.height,
-            estimated_wind.x,
-            estimated_wind.z,
-            this->wind_scale_,
-            this->wind_width_,
-            visualization_cuda::SegmentStyle::estimated_wind,
-            this->estimated_wind_segments_.mapped_buffers[frame_slot_index]);
+        const std::size_t control_step               = std::min<std::size_t>(this->trajectory_step_, this->options_.trajectory_steps - 1u);
+        const Vector3 target_wind                    = interpolate_wind(this->task_.target_keyframes, control_step, this->options_.trajectory_steps);
+        const Vector3 estimated_wind                 = interpolate_wind(this->task_.estimated_keyframes, control_step, this->options_.trajectory_steps);
+        project_cuda::launch_segments(stream, static_cast<std::uint32_t>(model.topology.stretch_springs.size()), target_state.positions.x.data, target_state.positions.y.data, target_state.positions.z.data, topology.stretch.first.data, topology.stretch.second.data, this->visualization_parameters_.stretch_rest_lengths.data, 1.0F, this->strain_range_, project_cuda::SegmentStyle::target, this->target_stretch_segments_.mapped_buffers[frame_slot_index]);
+        project_cuda::launch_segments(stream, static_cast<std::uint32_t>(model.topology.stretch_springs.size()), estimated_state.positions.x.data, estimated_state.positions.y.data, estimated_state.positions.z.data, topology.stretch.first.data, topology.stretch.second.data, this->visualization_parameters_.stretch_rest_lengths.data, this->stretch_width_, this->strain_range_, project_cuda::SegmentStyle::estimate, this->estimated_stretch_segments_.mapped_buffers[frame_slot_index]);
+        project_cuda::launch_segments(stream, static_cast<std::uint32_t>(model.topology.bending_springs.size()), estimated_state.positions.x.data, estimated_state.positions.y.data, estimated_state.positions.z.data, topology.bending.first.data, topology.bending.second.data, this->visualization_parameters_.bending_rest_lengths.data, this->bending_width_, this->strain_range_, project_cuda::SegmentStyle::bending, this->estimated_bending_segments_.mapped_buffers[frame_slot_index]);
+        project_cuda::launch_wind_arrow(stream, -0.42F * this->options_.width, -0.12F * this->options_.height, 0.50F * this->options_.height, target_wind.x, target_wind.z, this->wind_scale_, this->wind_width_, project_cuda::SegmentStyle::target_wind, this->target_wind_segments_.mapped_buffers[frame_slot_index]);
+        project_cuda::launch_wind_arrow(stream, -0.42F * this->options_.width, -0.12F * this->options_.height, 0.50F * this->options_.height, estimated_wind.x, estimated_wind.z, this->wind_scale_, this->wind_width_, project_cuda::SegmentStyle::estimated_wind, this->estimated_wind_segments_.mapped_buffers[frame_slot_index]);
         if (const cudaError_t status = cudaGetLastError(); status != cudaSuccess) throw std::runtime_error(std::format("cloth visualization kernel launch failed: {}", cudaGetErrorString(status)));
-        this->target_stretch_segments_.slot_revisions[frame_slot_index] = this->content_revision_;
+        this->target_stretch_segments_.slot_revisions[frame_slot_index]    = this->content_revision_;
         this->estimated_stretch_segments_.slot_revisions[frame_slot_index] = this->content_revision_;
         this->estimated_bending_segments_.slot_revisions[frame_slot_index] = this->content_revision_;
-        this->target_wind_segments_.slot_revisions[frame_slot_index] = this->content_revision_;
-        this->estimated_wind_segments_.slot_revisions[frame_slot_index] = this->content_revision_;
+        this->target_wind_segments_.slot_revisions[frame_slot_index]       = this->content_revision_;
+        this->estimated_wind_segments_.slot_revisions[frame_slot_index]    = this->content_revision_;
     }
 
 } // namespace xayah::cloth::examples::wind_trajectory_optimization::project

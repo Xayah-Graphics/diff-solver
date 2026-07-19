@@ -43,10 +43,10 @@ export namespace xayah::cloth::examples::wind_trajectory_optimization {
         WindTrajectoryOptimizationMetrics metrics;
 
         explicit WindTrajectoryOptimizationTask(Configuration configuration, WindTrajectoryOptimizationOptions options = {});
-        WindTrajectoryOptimizationTask(const WindTrajectoryOptimizationTask&) = delete;
-        WindTrajectoryOptimizationTask(WindTrajectoryOptimizationTask&&) = delete;
+        WindTrajectoryOptimizationTask(const WindTrajectoryOptimizationTask&)            = delete;
+        WindTrajectoryOptimizationTask(WindTrajectoryOptimizationTask&&)                 = delete;
         WindTrajectoryOptimizationTask& operator=(const WindTrajectoryOptimizationTask&) = delete;
-        WindTrajectoryOptimizationTask& operator=(WindTrajectoryOptimizationTask&&) = delete;
+        WindTrajectoryOptimizationTask& operator=(WindTrajectoryOptimizationTask&&)      = delete;
         ~WindTrajectoryOptimizationTask() noexcept;
 
         void reset();
@@ -68,7 +68,7 @@ export namespace xayah::cloth::examples::wind_trajectory_optimization {
         std::vector<Control> estimated_controls_;
         std::vector<Control> probe_controls_;
         Parameters parameters_;
-        xayah::solver::TrajectoryAdjoint<StateAdjoint> trajectory_adjoint_;
+        std::vector<StateAdjoint> trajectory_adjoint_;
         std::array<double, variable_count> keyframe_gradients_;
         std::array<double, variable_count> first_moments_;
         std::array<double, variable_count> second_moments_;

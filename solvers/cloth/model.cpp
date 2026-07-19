@@ -1,6 +1,6 @@
 module;
 
-#include "kernels.cuh"
+#include "operators.h"
 
 module xayah.cloth.model;
 
@@ -74,25 +74,66 @@ namespace xayah::cloth {
 
     } // namespace
 
-    ExecutionContext::ExecutionContext(const Configuration& configuration, const Topology& topology, const ExecutionMode mode) : resource_owner_(std::make_shared<cuda::Resource>()), resource(*resource_owner_), device_topology{}, integrated_state_{}, force_tangent_{}, integrated_state_tangent_{}, force_adjoint_{}, integrated_state_adjoint_{} {
-        device_topology.stretch = {
-            .first   = make_index_buffer(topology.stretch_springs.size()),
-            .second  = make_index_buffer(topology.stretch_springs.size()),
-            .offsets = make_index_buffer(topology.stretch_offsets.size()),
-            .indices = make_index_buffer(topology.stretch_indices.size()),
-            .others  = make_index_buffer(topology.stretch_others.size()),
-            .signs   = make_scalar_buffer(topology.stretch_signs.size()),
+    void upload(cuda::Resource& resource, const std::span<const float> source, cuda::Buffer<float>& destination) {
+        if (!source.empty()) resource.copy_from_host(destination.data, source.data(), source.size_bytes());
+        resource.synchronize();
+    }
+
+    void upload(cuda::Resource& resource, const std::span<const Vector3> source, VectorField& destination) {
+        std::vector<float> x(source.size());
+        std::vector<float> y(source.size());
+        std::vector<float> z(source.size());
+        for (std::size_t index = 0; index < source.size(); ++index) {
+            x[index] = source[index].x;
+            y[index] = source[index].y;
+            z[index] = source[index].z;
+        }
+        if (!source.empty()) {
+            resource.copy_from_host(destination.x.data, x.data(), x.size() * sizeof(float));
+            resource.copy_from_host(destination.y.data, y.data(), y.size() * sizeof(float));
+            resource.copy_from_host(destination.z.data, z.data(), z.size() * sizeof(float));
+        }
+        resource.synchronize();
+    }
+
+    void download(cuda::Resource& resource, const VectorField& source, const std::span<Vector3> destination) {
+        std::vector<float> x(destination.size());
+        std::vector<float> y(destination.size());
+        std::vector<float> z(destination.size());
+        if (!destination.empty()) {
+            resource.copy_to_host(x.data(), source.x.data, x.size() * sizeof(float));
+            resource.copy_to_host(y.data(), source.y.data, y.size() * sizeof(float));
+            resource.copy_to_host(z.data(), source.z.data, z.size() * sizeof(float));
+        }
+        resource.synchronize();
+        for (std::size_t index = 0; index < destination.size(); ++index) destination[index] = {.x = x[index], .y = y[index], .z = z[index]};
+    }
+
+    Model::Model(Configuration next_configuration) : configuration(std::move(next_configuration)), topology(build_topology(configuration)) {}
+
+    ExecutionContext Model::allocate_context(const ExecutionMode mode) const {
+        ExecutionContext context{};
+        context.resource                = std::make_shared<cuda::Resource>();
+        cuda::Resource& resource        = *context.resource;
+        DeviceTopology& device_topology = context.device_topology;
+        device_topology.stretch         = {
+                    .first   = cuda::Buffer<std::uint32_t>(context.resource, topology.stretch_springs.size()),
+                    .second  = cuda::Buffer<std::uint32_t>(context.resource, topology.stretch_springs.size()),
+                    .offsets = cuda::Buffer<std::uint32_t>(context.resource, topology.stretch_offsets.size()),
+                    .indices = cuda::Buffer<std::uint32_t>(context.resource, topology.stretch_indices.size()),
+                    .others  = cuda::Buffer<std::uint32_t>(context.resource, topology.stretch_others.size()),
+                    .signs   = cuda::Buffer<float>(context.resource, topology.stretch_signs.size()),
         };
         device_topology.bending = {
-            .first   = make_index_buffer(topology.bending_springs.size()),
-            .second  = make_index_buffer(topology.bending_springs.size()),
-            .offsets = make_index_buffer(topology.bending_offsets.size()),
-            .indices = make_index_buffer(topology.bending_indices.size()),
-            .others  = make_index_buffer(topology.bending_others.size()),
-            .signs   = make_scalar_buffer(topology.bending_signs.size()),
+            .first   = cuda::Buffer<std::uint32_t>(context.resource, topology.bending_springs.size()),
+            .second  = cuda::Buffer<std::uint32_t>(context.resource, topology.bending_springs.size()),
+            .offsets = cuda::Buffer<std::uint32_t>(context.resource, topology.bending_offsets.size()),
+            .indices = cuda::Buffer<std::uint32_t>(context.resource, topology.bending_indices.size()),
+            .others  = cuda::Buffer<std::uint32_t>(context.resource, topology.bending_others.size()),
+            .signs   = cuda::Buffer<float>(context.resource, topology.bending_signs.size()),
         };
-        device_topology.anchor_mask      = make_index_buffer(configuration.anchors.size());
-        device_topology.anchor_positions = make_vector_field(configuration.anchors.size());
+        device_topology.anchor_mask      = cuda::Buffer<std::uint32_t>(context.resource, configuration.anchors.size());
+        device_topology.anchor_positions = allocate_vector_field(context, configuration.anchors.size());
 
         std::vector<std::uint32_t> stretch_first(topology.stretch_springs.size());
         std::vector<std::uint32_t> stretch_second(topology.stretch_springs.size());
@@ -139,241 +180,192 @@ namespace xayah::cloth {
         resource.copy_from_host(device_topology.anchor_positions.y.data, y.data(), y.size() * sizeof(float));
         resource.copy_from_host(device_topology.anchor_positions.z.data, z.data(), z.size() * sizeof(float));
 
-        integrated_state_ = {.positions = make_vector_field(configuration.rest_positions.size()), .velocities = make_vector_field(configuration.rest_positions.size())};
+        context.integrated_state_ = {.positions = allocate_vector_field(context, configuration.rest_positions.size()), .velocities = allocate_vector_field(context, configuration.rest_positions.size())};
         if (mode == ExecutionMode::differentiable) {
-            force_tangent_ = {.values = make_vector_field(configuration.rest_positions.size())};
-            integrated_state_tangent_ = {.positions = make_vector_field(configuration.rest_positions.size()), .velocities = make_vector_field(configuration.rest_positions.size())};
-            force_adjoint_ = {.values = make_vector_field(configuration.rest_positions.size())};
-            integrated_state_adjoint_ = {.positions = make_vector_field(configuration.rest_positions.size()), .velocities = make_vector_field(configuration.rest_positions.size())};
+            context.force_tangent_            = {.values = allocate_vector_field(context, configuration.rest_positions.size())};
+            context.integrated_state_tangent_ = {.positions = allocate_vector_field(context, configuration.rest_positions.size()), .velocities = allocate_vector_field(context, configuration.rest_positions.size())};
+            context.force_adjoint_            = {.values = allocate_vector_field(context, configuration.rest_positions.size())};
+            context.integrated_state_adjoint_ = {.positions = allocate_vector_field(context, configuration.rest_positions.size()), .velocities = allocate_vector_field(context, configuration.rest_positions.size())};
         }
         resource.synchronize();
+        return context;
     }
 
-    void ExecutionContext::upload(const std::span<const float> source, cuda::Buffer<float>& destination) {
-        if (!source.empty()) resource.copy_from_host(destination.data, source.data(), source.size_bytes());
-        resource.synchronize();
+    VectorField Model::allocate_vector_field(ExecutionContext& context, const std::size_t size) const {
+        return {.x = cuda::Buffer<float>(context.resource, size), .y = cuda::Buffer<float>(context.resource, size), .z = cuda::Buffer<float>(context.resource, size)};
     }
 
-    void ExecutionContext::download(const cuda::Buffer<float>& source, const std::span<float> destination) {
-        if (!destination.empty()) resource.copy_to_host(destination.data(), source.data, destination.size_bytes());
-        resource.synchronize();
+    State Model::allocate_state(ExecutionContext& context) const {
+        return {.positions = allocate_vector_field(context, configuration.rest_positions.size()), .velocities = allocate_vector_field(context, configuration.rest_positions.size())};
     }
 
-    void ExecutionContext::upload(const std::span<const Vector3> source, VectorField& destination) {
-        std::vector<float> x(source.size());
-        std::vector<float> y(source.size());
-        std::vector<float> z(source.size());
-        for (std::size_t index = 0; index < source.size(); ++index) {
-            x[index] = source[index].x;
-            y[index] = source[index].y;
-            z[index] = source[index].z;
-        }
-        if (!source.empty()) {
-            resource.copy_from_host(destination.x.data, x.data(), x.size() * sizeof(float));
-            resource.copy_from_host(destination.y.data, y.data(), y.size() * sizeof(float));
-            resource.copy_from_host(destination.z.data, z.data(), z.size() * sizeof(float));
-        }
-        resource.synchronize();
-    }
-
-    void ExecutionContext::download(const VectorField& source, const std::span<Vector3> destination) {
-        std::vector<float> x(destination.size());
-        std::vector<float> y(destination.size());
-        std::vector<float> z(destination.size());
-        if (!destination.empty()) {
-            resource.copy_to_host(x.data(), source.x.data, x.size() * sizeof(float));
-            resource.copy_to_host(y.data(), source.y.data, y.size() * sizeof(float));
-            resource.copy_to_host(z.data(), source.z.data, z.size() * sizeof(float));
-        }
-        resource.synchronize();
-        for (std::size_t index = 0; index < destination.size(); ++index) destination[index] = {.x = x[index], .y = y[index], .z = z[index]};
-    }
-
-    void ExecutionContext::synchronize() {
-        resource.synchronize();
-    }
-
-    cuda::Buffer<float> ExecutionContext::make_scalar_buffer(const std::size_t size) const {
-        return cuda::Buffer<float>(resource_owner_, size);
-    }
-
-    cuda::Buffer<std::uint32_t> ExecutionContext::make_index_buffer(const std::size_t size) const {
-        return cuda::Buffer<std::uint32_t>(resource_owner_, size);
-    }
-
-    VectorField ExecutionContext::make_vector_field(const std::size_t size) const {
-        return {.x = make_scalar_buffer(size), .y = make_scalar_buffer(size), .z = make_scalar_buffer(size)};
-    }
-
-    void ExecutionContext::zero(cuda::Buffer<float>& buffer) {
-        if (buffer.size != 0) resource.zero(buffer.data, buffer.size * sizeof(float));
-    }
-
-    void ExecutionContext::zero(VectorField& field) {
-        zero(field.x);
-        zero(field.y);
-        zero(field.z);
-    }
-
-    void ExecutionContext::copy(const cuda::Buffer<float>& source, cuda::Buffer<float>& destination) {
-        if (source.size != 0) resource.copy_device(destination.data, source.data, source.size * sizeof(float));
-    }
-
-    void ExecutionContext::copy(const VectorField& source, VectorField& destination) {
-        copy(source.x, destination.x);
-        copy(source.y, destination.y);
-        copy(source.z, destination.z);
-    }
-
-    void ExecutionContext::accumulate(const VectorField& source, VectorField& destination) {
-        cuda_kernel::launch_accumulate(resource.native_stream, static_cast<std::uint32_t>(source.x.size), {.x = source.x.data, .y = source.y.data, .z = source.z.data}, {.x = destination.x.data, .y = destination.y.data, .z = destination.z.data});
-    }
-
-    Model::Model(Configuration next_configuration) : configuration(std::move(next_configuration)), topology(build_topology(configuration)) {}
-
-    ExecutionContext Model::make_context(const ExecutionMode mode) const {
-        return ExecutionContext(configuration, topology, mode);
-    }
-
-    State Model::make_state(ExecutionContext& context) const {
-        return {.positions = context.make_vector_field(configuration.rest_positions.size()), .velocities = context.make_vector_field(configuration.rest_positions.size())};
-    }
-
-    Control Model::make_control(ExecutionContext& context) const {
-        Control control{.external_forces = context.make_vector_field(configuration.rest_positions.size())};
-        context.zero(control.external_forces);
+    Control Model::allocate_control(ExecutionContext& context) const {
+        Control control{.external_forces = allocate_vector_field(context, configuration.rest_positions.size())};
+        context.resource->zero(control.external_forces.x.data, control.external_forces.x.size * sizeof(float));
+        context.resource->zero(control.external_forces.y.data, control.external_forces.y.size * sizeof(float));
+        context.resource->zero(control.external_forces.z.data, control.external_forces.z.size * sizeof(float));
         return control;
     }
 
-    Parameters Model::make_parameters(ExecutionContext& context) const {
+    Parameters Model::allocate_parameters(ExecutionContext& context) const {
         Parameters parameters{
-            .masses               = context.make_scalar_buffer(configuration.rest_positions.size()),
-            .stretch_stiffnesses  = context.make_scalar_buffer(topology.stretch_springs.size()),
-            .stretch_dampings     = context.make_scalar_buffer(topology.stretch_springs.size()),
-            .stretch_rest_lengths = context.make_scalar_buffer(topology.stretch_springs.size()),
-            .bending_stiffnesses  = context.make_scalar_buffer(topology.bending_springs.size()),
-            .bending_dampings     = context.make_scalar_buffer(topology.bending_springs.size()),
-            .bending_rest_lengths = context.make_scalar_buffer(topology.bending_springs.size()),
+            .masses               = cuda::Buffer<float>(context.resource, configuration.rest_positions.size()),
+            .stretch_stiffnesses  = cuda::Buffer<float>(context.resource, topology.stretch_springs.size()),
+            .stretch_dampings     = cuda::Buffer<float>(context.resource, topology.stretch_springs.size()),
+            .stretch_rest_lengths = cuda::Buffer<float>(context.resource, topology.stretch_springs.size()),
+            .bending_stiffnesses  = cuda::Buffer<float>(context.resource, topology.bending_springs.size()),
+            .bending_dampings     = cuda::Buffer<float>(context.resource, topology.bending_springs.size()),
+            .bending_rest_lengths = cuda::Buffer<float>(context.resource, topology.bending_springs.size()),
         };
-        context.zero(parameters.masses);
-        context.zero(parameters.stretch_stiffnesses);
-        context.zero(parameters.stretch_dampings);
-        context.zero(parameters.stretch_rest_lengths);
-        context.zero(parameters.bending_stiffnesses);
-        context.zero(parameters.bending_dampings);
-        context.zero(parameters.bending_rest_lengths);
+        if (parameters.masses.size != 0u) context.resource->zero(parameters.masses.data, parameters.masses.size * sizeof(float));
+        if (parameters.stretch_stiffnesses.size != 0u) context.resource->zero(parameters.stretch_stiffnesses.data, parameters.stretch_stiffnesses.size * sizeof(float));
+        if (parameters.stretch_dampings.size != 0u) context.resource->zero(parameters.stretch_dampings.data, parameters.stretch_dampings.size * sizeof(float));
+        if (parameters.stretch_rest_lengths.size != 0u) context.resource->zero(parameters.stretch_rest_lengths.data, parameters.stretch_rest_lengths.size * sizeof(float));
+        if (parameters.bending_stiffnesses.size != 0u) context.resource->zero(parameters.bending_stiffnesses.data, parameters.bending_stiffnesses.size * sizeof(float));
+        if (parameters.bending_dampings.size != 0u) context.resource->zero(parameters.bending_dampings.data, parameters.bending_dampings.size * sizeof(float));
+        if (parameters.bending_rest_lengths.size != 0u) context.resource->zero(parameters.bending_rest_lengths.data, parameters.bending_rest_lengths.size * sizeof(float));
         return parameters;
     }
 
-    StepCache Model::make_step_cache(ExecutionContext& context) const {
-        return {.forces = {.values = context.make_vector_field(configuration.rest_positions.size())}};
+    StepCache Model::allocate_step_cache(ExecutionContext& context) const {
+        return {.forces = {.values = allocate_vector_field(context, configuration.rest_positions.size())}};
     }
 
-    StateTangent Model::make_state_tangent(ExecutionContext& context) const {
-        StateTangent tangent{.positions = context.make_vector_field(configuration.rest_positions.size()), .velocities = context.make_vector_field(configuration.rest_positions.size())};
-        context.zero(tangent.positions);
-        context.zero(tangent.velocities);
+    StateTangent Model::allocate_state_tangent(ExecutionContext& context) const {
+        StateTangent tangent{.positions = allocate_vector_field(context, configuration.rest_positions.size()), .velocities = allocate_vector_field(context, configuration.rest_positions.size())};
+        context.resource->zero(tangent.positions.x.data, tangent.positions.x.size * sizeof(float));
+        context.resource->zero(tangent.positions.y.data, tangent.positions.y.size * sizeof(float));
+        context.resource->zero(tangent.positions.z.data, tangent.positions.z.size * sizeof(float));
+        context.resource->zero(tangent.velocities.x.data, tangent.velocities.x.size * sizeof(float));
+        context.resource->zero(tangent.velocities.y.data, tangent.velocities.y.size * sizeof(float));
+        context.resource->zero(tangent.velocities.z.data, tangent.velocities.z.size * sizeof(float));
         return tangent;
     }
 
-    ControlTangent Model::make_control_tangent(ExecutionContext& context) const {
-        ControlTangent tangent{.external_forces = context.make_vector_field(configuration.rest_positions.size())};
-        context.zero(tangent.external_forces);
+    ControlTangent Model::allocate_control_tangent(ExecutionContext& context) const {
+        ControlTangent tangent{.external_forces = allocate_vector_field(context, configuration.rest_positions.size())};
+        context.resource->zero(tangent.external_forces.x.data, tangent.external_forces.x.size * sizeof(float));
+        context.resource->zero(tangent.external_forces.y.data, tangent.external_forces.y.size * sizeof(float));
+        context.resource->zero(tangent.external_forces.z.data, tangent.external_forces.z.size * sizeof(float));
         return tangent;
     }
 
-    ParameterTangent Model::make_parameter_tangent(ExecutionContext& context) const {
+    ParameterTangent Model::allocate_parameter_tangent(ExecutionContext& context) const {
         ParameterTangent tangent{
-            .masses               = context.make_scalar_buffer(configuration.rest_positions.size()),
-            .stretch_stiffnesses  = context.make_scalar_buffer(topology.stretch_springs.size()),
-            .stretch_dampings     = context.make_scalar_buffer(topology.stretch_springs.size()),
-            .stretch_rest_lengths = context.make_scalar_buffer(topology.stretch_springs.size()),
-            .bending_stiffnesses  = context.make_scalar_buffer(topology.bending_springs.size()),
-            .bending_dampings     = context.make_scalar_buffer(topology.bending_springs.size()),
-            .bending_rest_lengths = context.make_scalar_buffer(topology.bending_springs.size()),
+            .masses               = cuda::Buffer<float>(context.resource, configuration.rest_positions.size()),
+            .stretch_stiffnesses  = cuda::Buffer<float>(context.resource, topology.stretch_springs.size()),
+            .stretch_dampings     = cuda::Buffer<float>(context.resource, topology.stretch_springs.size()),
+            .stretch_rest_lengths = cuda::Buffer<float>(context.resource, topology.stretch_springs.size()),
+            .bending_stiffnesses  = cuda::Buffer<float>(context.resource, topology.bending_springs.size()),
+            .bending_dampings     = cuda::Buffer<float>(context.resource, topology.bending_springs.size()),
+            .bending_rest_lengths = cuda::Buffer<float>(context.resource, topology.bending_springs.size()),
         };
-        context.zero(tangent.masses);
-        context.zero(tangent.stretch_stiffnesses);
-        context.zero(tangent.stretch_dampings);
-        context.zero(tangent.stretch_rest_lengths);
-        context.zero(tangent.bending_stiffnesses);
-        context.zero(tangent.bending_dampings);
-        context.zero(tangent.bending_rest_lengths);
+        if (tangent.masses.size != 0u) context.resource->zero(tangent.masses.data, tangent.masses.size * sizeof(float));
+        if (tangent.stretch_stiffnesses.size != 0u) context.resource->zero(tangent.stretch_stiffnesses.data, tangent.stretch_stiffnesses.size * sizeof(float));
+        if (tangent.stretch_dampings.size != 0u) context.resource->zero(tangent.stretch_dampings.data, tangent.stretch_dampings.size * sizeof(float));
+        if (tangent.stretch_rest_lengths.size != 0u) context.resource->zero(tangent.stretch_rest_lengths.data, tangent.stretch_rest_lengths.size * sizeof(float));
+        if (tangent.bending_stiffnesses.size != 0u) context.resource->zero(tangent.bending_stiffnesses.data, tangent.bending_stiffnesses.size * sizeof(float));
+        if (tangent.bending_dampings.size != 0u) context.resource->zero(tangent.bending_dampings.data, tangent.bending_dampings.size * sizeof(float));
+        if (tangent.bending_rest_lengths.size != 0u) context.resource->zero(tangent.bending_rest_lengths.data, tangent.bending_rest_lengths.size * sizeof(float));
         return tangent;
     }
 
-    StateAdjoint Model::make_state_adjoint(ExecutionContext& context) const {
-        StateAdjoint adjoint{.positions = context.make_vector_field(configuration.rest_positions.size()), .velocities = context.make_vector_field(configuration.rest_positions.size())};
-        context.zero(adjoint.positions);
-        context.zero(adjoint.velocities);
+    StateAdjoint Model::allocate_state_adjoint(ExecutionContext& context) const {
+        StateAdjoint adjoint{.positions = allocate_vector_field(context, configuration.rest_positions.size()), .velocities = allocate_vector_field(context, configuration.rest_positions.size())};
+        context.resource->zero(adjoint.positions.x.data, adjoint.positions.x.size * sizeof(float));
+        context.resource->zero(adjoint.positions.y.data, adjoint.positions.y.size * sizeof(float));
+        context.resource->zero(adjoint.positions.z.data, adjoint.positions.z.size * sizeof(float));
+        context.resource->zero(adjoint.velocities.x.data, adjoint.velocities.x.size * sizeof(float));
+        context.resource->zero(adjoint.velocities.y.data, adjoint.velocities.y.size * sizeof(float));
+        context.resource->zero(adjoint.velocities.z.data, adjoint.velocities.z.size * sizeof(float));
         return adjoint;
     }
 
-    ControlAdjoint Model::make_control_adjoint(ExecutionContext& context) const {
-        ControlAdjoint adjoint{.external_forces = context.make_vector_field(configuration.rest_positions.size())};
-        context.zero(adjoint.external_forces);
+    ControlAdjoint Model::allocate_control_adjoint(ExecutionContext& context) const {
+        ControlAdjoint adjoint{.external_forces = allocate_vector_field(context, configuration.rest_positions.size())};
+        context.resource->zero(adjoint.external_forces.x.data, adjoint.external_forces.x.size * sizeof(float));
+        context.resource->zero(adjoint.external_forces.y.data, adjoint.external_forces.y.size * sizeof(float));
+        context.resource->zero(adjoint.external_forces.z.data, adjoint.external_forces.z.size * sizeof(float));
         return adjoint;
     }
 
-    ParameterAdjoint Model::make_parameter_adjoint(ExecutionContext& context) const {
+    ParameterAdjoint Model::allocate_parameter_adjoint(ExecutionContext& context) const {
         ParameterAdjoint adjoint{
-            .masses               = context.make_scalar_buffer(configuration.rest_positions.size()),
-            .stretch_stiffnesses  = context.make_scalar_buffer(topology.stretch_springs.size()),
-            .stretch_dampings     = context.make_scalar_buffer(topology.stretch_springs.size()),
-            .stretch_rest_lengths = context.make_scalar_buffer(topology.stretch_springs.size()),
-            .bending_stiffnesses  = context.make_scalar_buffer(topology.bending_springs.size()),
-            .bending_dampings     = context.make_scalar_buffer(topology.bending_springs.size()),
-            .bending_rest_lengths = context.make_scalar_buffer(topology.bending_springs.size()),
+            .masses               = cuda::Buffer<float>(context.resource, configuration.rest_positions.size()),
+            .stretch_stiffnesses  = cuda::Buffer<float>(context.resource, topology.stretch_springs.size()),
+            .stretch_dampings     = cuda::Buffer<float>(context.resource, topology.stretch_springs.size()),
+            .stretch_rest_lengths = cuda::Buffer<float>(context.resource, topology.stretch_springs.size()),
+            .bending_stiffnesses  = cuda::Buffer<float>(context.resource, topology.bending_springs.size()),
+            .bending_dampings     = cuda::Buffer<float>(context.resource, topology.bending_springs.size()),
+            .bending_rest_lengths = cuda::Buffer<float>(context.resource, topology.bending_springs.size()),
         };
-        context.zero(adjoint.masses);
-        context.zero(adjoint.stretch_stiffnesses);
-        context.zero(adjoint.stretch_dampings);
-        context.zero(adjoint.stretch_rest_lengths);
-        context.zero(adjoint.bending_stiffnesses);
-        context.zero(adjoint.bending_dampings);
-        context.zero(adjoint.bending_rest_lengths);
+        if (adjoint.masses.size != 0u) context.resource->zero(adjoint.masses.data, adjoint.masses.size * sizeof(float));
+        if (adjoint.stretch_stiffnesses.size != 0u) context.resource->zero(adjoint.stretch_stiffnesses.data, adjoint.stretch_stiffnesses.size * sizeof(float));
+        if (adjoint.stretch_dampings.size != 0u) context.resource->zero(adjoint.stretch_dampings.data, adjoint.stretch_dampings.size * sizeof(float));
+        if (adjoint.stretch_rest_lengths.size != 0u) context.resource->zero(adjoint.stretch_rest_lengths.data, adjoint.stretch_rest_lengths.size * sizeof(float));
+        if (adjoint.bending_stiffnesses.size != 0u) context.resource->zero(adjoint.bending_stiffnesses.data, adjoint.bending_stiffnesses.size * sizeof(float));
+        if (adjoint.bending_dampings.size != 0u) context.resource->zero(adjoint.bending_dampings.data, adjoint.bending_dampings.size * sizeof(float));
+        if (adjoint.bending_rest_lengths.size != 0u) context.resource->zero(adjoint.bending_rest_lengths.data, adjoint.bending_rest_lengths.size * sizeof(float));
         return adjoint;
     }
 
     void Model::copy_state(const State& source, State& destination, ExecutionContext& context) const {
-        context.copy(source.positions, destination.positions);
-        context.copy(source.velocities, destination.velocities);
+        context.resource->copy_device(destination.positions.x.data, source.positions.x.data, source.positions.x.size * sizeof(float));
+        context.resource->copy_device(destination.positions.y.data, source.positions.y.data, source.positions.y.size * sizeof(float));
+        context.resource->copy_device(destination.positions.z.data, source.positions.z.data, source.positions.z.size * sizeof(float));
+        context.resource->copy_device(destination.velocities.x.data, source.velocities.x.data, source.velocities.x.size * sizeof(float));
+        context.resource->copy_device(destination.velocities.y.data, source.velocities.y.data, source.velocities.y.size * sizeof(float));
+        context.resource->copy_device(destination.velocities.z.data, source.velocities.z.data, source.velocities.z.size * sizeof(float));
     }
 
     void Model::copy_state_tangent(const StateTangent& source, StateTangent& destination, ExecutionContext& context) const {
-        context.copy(source.positions, destination.positions);
-        context.copy(source.velocities, destination.velocities);
+        context.resource->copy_device(destination.positions.x.data, source.positions.x.data, source.positions.x.size * sizeof(float));
+        context.resource->copy_device(destination.positions.y.data, source.positions.y.data, source.positions.y.size * sizeof(float));
+        context.resource->copy_device(destination.positions.z.data, source.positions.z.data, source.positions.z.size * sizeof(float));
+        context.resource->copy_device(destination.velocities.x.data, source.velocities.x.data, source.velocities.x.size * sizeof(float));
+        context.resource->copy_device(destination.velocities.y.data, source.velocities.y.data, source.velocities.y.size * sizeof(float));
+        context.resource->copy_device(destination.velocities.z.data, source.velocities.z.data, source.velocities.z.size * sizeof(float));
     }
 
     void Model::copy_state_adjoint(const StateAdjoint& source, StateAdjoint& destination, ExecutionContext& context) const {
-        context.copy(source.positions, destination.positions);
-        context.copy(source.velocities, destination.velocities);
+        context.resource->copy_device(destination.positions.x.data, source.positions.x.data, source.positions.x.size * sizeof(float));
+        context.resource->copy_device(destination.positions.y.data, source.positions.y.data, source.positions.y.size * sizeof(float));
+        context.resource->copy_device(destination.positions.z.data, source.positions.z.data, source.positions.z.size * sizeof(float));
+        context.resource->copy_device(destination.velocities.x.data, source.velocities.x.data, source.velocities.x.size * sizeof(float));
+        context.resource->copy_device(destination.velocities.y.data, source.velocities.y.data, source.velocities.y.size * sizeof(float));
+        context.resource->copy_device(destination.velocities.z.data, source.velocities.z.data, source.velocities.z.size * sizeof(float));
     }
 
     void Model::accumulate_state_adjoint(const StateAdjoint& source, StateAdjoint& destination, ExecutionContext& context) const {
-        context.accumulate(source.positions, destination.positions);
-        context.accumulate(source.velocities, destination.velocities);
+        cuda_kernel::launch_accumulate(context.resource->native_stream, static_cast<std::uint32_t>(source.positions.x.size), {.x = source.positions.x.data, .y = source.positions.y.data, .z = source.positions.z.data}, {.x = destination.positions.x.data, .y = destination.positions.y.data, .z = destination.positions.z.data});
+        cuda_kernel::launch_accumulate(context.resource->native_stream, static_cast<std::uint32_t>(source.velocities.x.size), {.x = source.velocities.x.data, .y = source.velocities.y.data, .z = source.velocities.z.data}, {.x = destination.velocities.x.data, .y = destination.velocities.y.data, .z = destination.velocities.z.data});
     }
 
     void Model::forward_step(const State& state, const Control& control, const Parameters& parameters, State& next_state, StepCache& step_cache, ExecutionContext& context) const {
-        force_assembly_.forward(context.resource, context.device_topology, configuration, state, control, parameters, step_cache.forces);
-        semi_implicit_euler_.forward(context.resource, configuration, state, parameters, step_cache.forces, context.integrated_state_);
-        fixed_constraint_.forward(context.resource, context.device_topology, context.integrated_state_, next_state);
+        force_assembly_.forward(*context.resource, context.device_topology, configuration, state, control, parameters, step_cache.forces);
+        semi_implicit_euler_.forward(*context.resource, configuration, state, parameters, step_cache.forces, context.integrated_state_);
+        fixed_constraint_.forward(*context.resource, context.device_topology, context.integrated_state_, next_state);
     }
 
     void Model::jvp_step(const State& state, const Control&, const Parameters& parameters, const State&, const StepCache& step_cache, const StateTangent& state_tangent, const ControlTangent& control_tangent, const ParameterTangent& parameter_tangent, StateTangent& next_state_tangent, ExecutionContext& context) const {
-        force_assembly_.jvp(context.resource, context.device_topology, configuration, state, parameters, state_tangent, control_tangent, parameter_tangent, context.force_tangent_);
-        semi_implicit_euler_.jvp(context.resource, configuration, parameters, step_cache.forces, state_tangent, parameter_tangent, context.force_tangent_, context.integrated_state_tangent_);
-        fixed_constraint_.jvp(context.resource, context.device_topology, context.integrated_state_tangent_, next_state_tangent);
+        force_assembly_.jvp(*context.resource, context.device_topology, configuration, state, parameters, state_tangent, control_tangent, parameter_tangent, context.force_tangent_);
+        semi_implicit_euler_.jvp(*context.resource, configuration, parameters, step_cache.forces, state_tangent, parameter_tangent, context.force_tangent_, context.integrated_state_tangent_);
+        fixed_constraint_.jvp(*context.resource, context.device_topology, context.integrated_state_tangent_, next_state_tangent);
     }
 
     void Model::vjp_step(const State& state, const Control&, const Parameters& parameters, const State&, const StepCache& step_cache, const StateAdjoint& next_state_adjoint, StateAdjoint& previous_state_adjoint, ControlAdjoint& control_adjoint, ParameterAdjoint& parameter_adjoint, ExecutionContext& context) const {
-        context.zero(context.force_adjoint_.values);
-        context.zero(context.integrated_state_adjoint_.positions);
-        context.zero(context.integrated_state_adjoint_.velocities);
-        fixed_constraint_.vjp(context.resource, context.device_topology, next_state_adjoint, context.integrated_state_adjoint_);
-        semi_implicit_euler_.vjp(context.resource, configuration, parameters, step_cache.forces, context.integrated_state_adjoint_, previous_state_adjoint, context.force_adjoint_, parameter_adjoint);
-        force_assembly_.vjp(context.resource, context.device_topology, configuration, state, parameters, context.force_adjoint_, previous_state_adjoint, control_adjoint, parameter_adjoint);
+        context.resource->zero(context.force_adjoint_.values.x.data, context.force_adjoint_.values.x.size * sizeof(float));
+        context.resource->zero(context.force_adjoint_.values.y.data, context.force_adjoint_.values.y.size * sizeof(float));
+        context.resource->zero(context.force_adjoint_.values.z.data, context.force_adjoint_.values.z.size * sizeof(float));
+        context.resource->zero(context.integrated_state_adjoint_.positions.x.data, context.integrated_state_adjoint_.positions.x.size * sizeof(float));
+        context.resource->zero(context.integrated_state_adjoint_.positions.y.data, context.integrated_state_adjoint_.positions.y.size * sizeof(float));
+        context.resource->zero(context.integrated_state_adjoint_.positions.z.data, context.integrated_state_adjoint_.positions.z.size * sizeof(float));
+        context.resource->zero(context.integrated_state_adjoint_.velocities.x.data, context.integrated_state_adjoint_.velocities.x.size * sizeof(float));
+        context.resource->zero(context.integrated_state_adjoint_.velocities.y.data, context.integrated_state_adjoint_.velocities.y.size * sizeof(float));
+        context.resource->zero(context.integrated_state_adjoint_.velocities.z.data, context.integrated_state_adjoint_.velocities.z.size * sizeof(float));
+        fixed_constraint_.vjp(*context.resource, context.device_topology, next_state_adjoint, context.integrated_state_adjoint_);
+        semi_implicit_euler_.vjp(*context.resource, configuration, parameters, step_cache.forces, context.integrated_state_adjoint_, previous_state_adjoint, context.force_adjoint_, parameter_adjoint);
+        force_assembly_.vjp(*context.resource, context.device_topology, configuration, state, parameters, context.force_adjoint_, previous_state_adjoint, control_adjoint, parameter_adjoint);
     }
 
 } // namespace xayah::cloth

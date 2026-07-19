@@ -1,0 +1,44 @@
+name: Windows Build
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2025-vs2026
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install CMake and Ninja
+        run: python -m pip install cmake==4.4.0 ninja
+
+      - name: Install CUDA
+        uses: Jimver/cuda-toolkit@v0.2.35
+        with:
+          cuda: '13.2.0'
+          method: network
+
+      - name: Enter Visual Studio developer environment
+        shell: pwsh
+        run: |
+          $installation = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          $developerCommand = Join-Path $installation 'Common7\Tools\VsDevCmd.bat'
+          cmd /d /s /c "`"$developerCommand`" -arch=x64 -host_arch=x64 && set" | ForEach-Object {
+              if ($_ -match '^([^=]+)=(.*)$') { "$($matches[1])=$($matches[2])" >> $env:GITHUB_ENV }
+          }
+
+      - name: Configure
+        run: >-
+          cmake -S . -B cmake-build-release -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DDIFF_SOLVER_BUILD_EXAMPLES=ON
+          -DDIFF_SOLVER_BUILD_SPECTRA_PLUGINS=ON
+
+      - name: Build
+        run: cmake --build cmake-build-release --parallel 30

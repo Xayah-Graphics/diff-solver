@@ -1,6 +1,6 @@
 module;
 
-#include "kernels.cuh"
+#include "operators.h"
 
 module xayah.cloth.operators;
 

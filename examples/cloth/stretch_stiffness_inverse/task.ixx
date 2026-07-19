@@ -41,10 +41,10 @@ export namespace xayah::cloth::examples::stretch_stiffness_inverse {
         StretchStiffnessInverseMetrics metrics;
 
         explicit StretchStiffnessInverseTask(Configuration configuration, StretchStiffnessInverseOptions options = {});
-        StretchStiffnessInverseTask(const StretchStiffnessInverseTask&) = delete;
-        StretchStiffnessInverseTask(StretchStiffnessInverseTask&&) = delete;
+        StretchStiffnessInverseTask(const StretchStiffnessInverseTask&)            = delete;
+        StretchStiffnessInverseTask(StretchStiffnessInverseTask&&)                 = delete;
         StretchStiffnessInverseTask& operator=(const StretchStiffnessInverseTask&) = delete;
-        StretchStiffnessInverseTask& operator=(StretchStiffnessInverseTask&&) = delete;
+        StretchStiffnessInverseTask& operator=(StretchStiffnessInverseTask&&)      = delete;
         ~StretchStiffnessInverseTask() noexcept;
 
         void reset();
@@ -60,7 +60,7 @@ export namespace xayah::cloth::examples::stretch_stiffness_inverse {
         ::xayah::cloth::State initial_state_;
         std::vector<Control> controls_;
         Parameters estimated_parameters_;
-        xayah::solver::TrajectoryAdjoint<StateAdjoint> trajectory_adjoint_;
+        std::vector<StateAdjoint> trajectory_adjoint_;
         double* scalar_;
         double log_stiffness_;
         double first_moment_;

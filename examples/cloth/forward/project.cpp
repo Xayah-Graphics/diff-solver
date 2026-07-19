@@ -12,9 +12,8 @@
 #include <unistd.h>
 #endif
 
+#include "project.h"
 #include <cuda_runtime_api.h>
-
-#include "../visualization.h"
 
 import std;
 import xayah.cloth.data;
@@ -33,8 +32,10 @@ namespace xayah::cloth::examples::forward::project {
             ExternalBuffer() = default;
 
             ~ExternalBuffer() noexcept {
-                for (void* const mapped_buffer : mapped_buffers) if (mapped_buffer != nullptr && cudaFree(mapped_buffer) != cudaSuccess) std::terminate();
-                for (const cudaExternalMemory_t external_memory : external_memories_) if (external_memory != nullptr && cudaDestroyExternalMemory(external_memory) != cudaSuccess) std::terminate();
+                for (void* const mapped_buffer : mapped_buffers)
+                    if (mapped_buffer != nullptr && cudaFree(mapped_buffer) != cudaSuccess) std::terminate();
+                for (const cudaExternalMemory_t external_memory : external_memories_)
+                    if (external_memory != nullptr && cudaDestroyExternalMemory(external_memory) != cudaSuccess) std::terminate();
                 if (allocation.resource_id != 0u) {
                     try {
                         host_services_->release_gpu_buffer(allocation.resource_id);
@@ -44,10 +45,10 @@ namespace xayah::cloth::examples::forward::project {
                 }
             }
 
-            ExternalBuffer(const ExternalBuffer&) = delete;
-            ExternalBuffer(ExternalBuffer&&) = delete;
+            ExternalBuffer(const ExternalBuffer&)            = delete;
+            ExternalBuffer(ExternalBuffer&&)                 = delete;
             ExternalBuffer& operator=(const ExternalBuffer&) = delete;
-            ExternalBuffer& operator=(ExternalBuffer&&) = delete;
+            ExternalBuffer& operator=(ExternalBuffer&&)      = delete;
 
             void create(std::shared_ptr<plugin::HostServices> host_services, const std::uint32_t kind, const std::uint64_t byte_size) {
                 plugin::GpuBufferAllocation next_allocation = host_services->request_gpu_buffer(kind, byte_size);
@@ -60,10 +61,10 @@ namespace xayah::cloth::examples::forward::project {
                         cudaExternalMemoryHandleDesc memory_descriptor{};
                         memory_descriptor.size = next_allocation.byte_size;
 #if defined(_WIN32)
-                        memory_descriptor.type = cudaExternalMemoryHandleTypeOpaqueWin32;
+                        memory_descriptor.type                = cudaExternalMemoryHandleTypeOpaqueWin32;
                         memory_descriptor.handle.win32.handle = reinterpret_cast<void*>(slot.handle);
 #else
-                        memory_descriptor.type = cudaExternalMemoryHandleTypeOpaqueFd;
+                        memory_descriptor.type      = cudaExternalMemoryHandleTypeOpaqueFd;
                         memory_descriptor.handle.fd = static_cast<int>(slot.handle);
 #endif
                         cudaExternalMemory_t external_memory{};
@@ -71,8 +72,10 @@ namespace xayah::cloth::examples::forward::project {
 #if defined(_WIN32)
                         close_imported_handle(slot);
 #else
-                        if (import_status == cudaSuccess) slot.handle = 0u;
-                        else close_imported_handle(slot);
+                        if (import_status == cudaSuccess)
+                            slot.handle = 0u;
+                        else
+                            close_imported_handle(slot);
 #endif
                         if (import_status != cudaSuccess) throw std::runtime_error(std::format("cudaImportExternalMemory failed: {}", cudaGetErrorString(import_status)));
                         cudaExternalMemoryBufferDesc buffer_descriptor{};
@@ -86,16 +89,19 @@ namespace xayah::cloth::examples::forward::project {
                         next_mapped_buffers.push_back(mapped_buffer);
                     }
                 } catch (...) {
-                    for (plugin::GpuBufferSlotAllocation& slot : next_allocation.slots) if (slot.handle != 0u) close_imported_handle(slot);
-                    for (void* const mapped_buffer : next_mapped_buffers) if (mapped_buffer != nullptr) static_cast<void>(cudaFree(mapped_buffer));
-                    for (const cudaExternalMemory_t external_memory : external_memories) if (external_memory != nullptr) static_cast<void>(cudaDestroyExternalMemory(external_memory));
+                    for (plugin::GpuBufferSlotAllocation& slot : next_allocation.slots)
+                        if (slot.handle != 0u) close_imported_handle(slot);
+                    for (void* const mapped_buffer : next_mapped_buffers)
+                        if (mapped_buffer != nullptr) static_cast<void>(cudaFree(mapped_buffer));
+                    for (const cudaExternalMemory_t external_memory : external_memories)
+                        if (external_memory != nullptr) static_cast<void>(cudaDestroyExternalMemory(external_memory));
                     host_services->release_gpu_buffer(next_allocation.resource_id);
                     throw;
                 }
-                host_services_ = std::move(host_services);
-                allocation = std::move(next_allocation);
+                host_services_     = std::move(host_services);
+                allocation         = std::move(next_allocation);
                 external_memories_ = std::move(external_memories);
-                mapped_buffers = std::move(next_mapped_buffers);
+                mapped_buffers     = std::move(next_mapped_buffers);
                 slot_revisions.assign(mapped_buffers.size(), 0u);
             }
 
@@ -132,14 +138,14 @@ namespace xayah::cloth::examples::forward::project {
                 forward[0] * right[1] - forward[1] * right[0],
             };
             return {
-                .name = "Overview",
-                .position = position,
-                .right = right,
-                .down = down,
-                .forward = forward,
+                .name                 = "Overview",
+                .position             = position,
+                .right                = right,
+                .down                 = down,
+                .forward              = forward,
                 .vertical_fov_degrees = 34.0F,
-                .near_plane = 0.01F,
-                .far_plane = 30.0F,
+                .near_plane           = 0.01F,
+                .far_plane            = 30.0F,
             };
         }
 
@@ -151,10 +157,10 @@ namespace xayah::cloth::examples::forward::project {
         explicit Project(std::shared_ptr<plugin::HostServices> host_services);
         ~Project() noexcept;
 
-        Project(const Project&) = delete;
-        Project(Project&&) = delete;
+        Project(const Project&)            = delete;
+        Project(Project&&)                 = delete;
         Project& operator=(const Project&) = delete;
-        Project& operator=(Project&&) = delete;
+        Project& operator=(Project&&)      = delete;
 
         [[nodiscard]] static const plugin::PluginDefinition<Project>& plugin();
         [[nodiscard]] static Project open(plugin::OpenContext context);
@@ -187,76 +193,84 @@ namespace xayah::cloth::examples::forward::project {
         float strain_range_{0.10F};
     };
 
-    Project::Project(std::shared_ptr<plugin::HostServices> host_services)
-        : stretch_rest_lengths_(static_cast<float*>(simulation_.context.resource.allocate(simulation_.model.topology.stretch_springs.size() * sizeof(float)))), bending_rest_lengths_(static_cast<float*>(simulation_.context.resource.allocate(simulation_.model.topology.bending_springs.size() * sizeof(float)))) {
+    Project::Project(std::shared_ptr<plugin::HostServices> host_services) : stretch_rest_lengths_(static_cast<float*>(simulation_.context.resource->allocate(simulation_.model.topology.stretch_springs.size() * sizeof(float)))), bending_rest_lengths_(static_cast<float*>(simulation_.context.resource->allocate(simulation_.model.topology.bending_springs.size() * sizeof(float)))) {
         std::vector<float> stretch_rest_lengths(simulation_.model.topology.stretch_springs.size());
         for (std::size_t spring = 0u; spring < stretch_rest_lengths.size(); ++spring) stretch_rest_lengths[spring] = simulation_.model.topology.stretch_springs[spring].rest_length;
-        simulation_.context.resource.copy_from_host(stretch_rest_lengths_, stretch_rest_lengths.data(), stretch_rest_lengths.size() * sizeof(float));
+        simulation_.context.resource->copy_from_host(stretch_rest_lengths_, stretch_rest_lengths.data(), stretch_rest_lengths.size() * sizeof(float));
         std::vector<float> bending_rest_lengths(simulation_.model.topology.bending_springs.size());
         for (std::size_t spring = 0u; spring < bending_rest_lengths.size(); ++spring) bending_rest_lengths[spring] = simulation_.model.topology.bending_springs[spring].rest_length;
-        simulation_.context.resource.copy_from_host(bending_rest_lengths_, bending_rest_lengths.data(), bending_rest_lengths.size() * sizeof(float));
+        simulation_.context.resource->copy_from_host(bending_rest_lengths_, bending_rest_lengths.data(), bending_rest_lengths.size() * sizeof(float));
         stretch_segments_.create(host_services, plugin::GpuBufferKindViewportSegmentSet, simulation_.model.topology.stretch_springs.size() * segment_bytes);
         bending_segments_.create(host_services, plugin::GpuBufferKindViewportSegmentSet, simulation_.model.topology.bending_springs.size() * segment_bytes);
         load_segments_.create(host_services, plugin::GpuBufferKindViewportSegmentSet, 9u * segment_bytes);
         for (std::size_t frame_slot = 0u; frame_slot < stretch_segments_.mapped_buffers.size(); ++frame_slot) write_visualization(static_cast<std::uint32_t>(frame_slot));
-        simulation_.context.synchronize();
+        simulation_.context.resource->synchronize();
     }
 
     Project::~Project() noexcept {
-        simulation_.context.resource.release(stretch_rest_lengths_);
-        simulation_.context.resource.release(bending_rest_lengths_);
+        simulation_.context.resource->release(stretch_rest_lengths_);
+        simulation_.context.resource->release(bending_rest_lengths_);
     }
 
     const plugin::PluginDefinition<Project>& Project::plugin() {
         static const plugin::PluginDefinition<Project> definition = [] {
             plugin::PluginDefinition<Project> value{
-                .id = "xayah.examples.cloth.forward",
-                .title = "CUDA Prescribed Traveling Load Cloth",
+                .id                = "xayah.examples.cloth.forward",
+                .title             = "CUDA Prescribed Traveling Load Cloth",
                 .open_action_label = "Open CUDA Prescribed Traveling Load Cloth",
-                .sections = {{.id = "simulation", .label = "Simulation"}, {.id = "display", .label = "Display"}},
-                .actions = {plugin::action<Project>("reset", "Reset Simulation", "Restore the stationary rest state and physical step zero on the next safe frame-slot update.", "simulation", [](Project& project) { project.reset_pending_ = true; })},
-                .settings = {
-                    plugin::toggle<Project>("show_stretch", "Show Stretch", true, "display", [](Project& project, const bool value) {
-                        project.show_stretch_ = value;
-                        ++project.content_revision_;
-                        ++project.revision;
-                    }),
-                    plugin::toggle<Project>("show_bending", "Show Bending", false, "display", [](Project& project, const bool value) {
-                        project.show_bending_ = value;
-                        ++project.content_revision_;
-                        ++project.revision;
-                    }),
-                    plugin::toggle<Project>("show_load", "Show Load", true, "display", [](Project& project, const bool value) {
-                        project.show_load_ = value;
-                        ++project.content_revision_;
-                        ++project.revision;
-                    }),
-                    plugin::float_setting<Project>("stretch_width", "Stretch Width", 1.5F, "display", 0.25F, 8.0F, 0.25F, [](Project& project, const float value) {
-                        project.stretch_width_ = value;
-                        ++project.content_revision_;
-                        ++project.revision;
-                    }),
-                    plugin::float_setting<Project>("bending_width", "Bending Width", 1.0F, "display", 0.25F, 8.0F, 0.25F, [](Project& project, const float value) {
-                        project.bending_width_ = value;
-                        ++project.content_revision_;
-                        ++project.revision;
-                    }),
-                    plugin::float_setting<Project>("load_width", "Load Width", 3.0F, "display", 0.25F, 8.0F, 0.25F, [](Project& project, const float value) {
-                        project.load_width_ = value;
-                        ++project.content_revision_;
-                        ++project.revision;
-                    }),
-                    plugin::float_setting<Project>("load_scale", "Load Scale", 0.08F, "display", 0.005F, 0.15F, 0.005F, [](Project& project, const float value) {
-                        project.load_scale_ = value;
-                        ++project.content_revision_;
-                        ++project.revision;
-                    }),
-                    plugin::float_setting<Project>("strain_range", "Strain Range", 0.10F, "display", 0.01F, 0.50F, 0.01F, [](Project& project, const float value) {
-                        project.strain_range_ = value;
-                        ++project.content_revision_;
-                        ++project.revision;
-                    }),
-                },
+                .sections          = {{.id = "simulation", .label = "Simulation"}, {.id = "display", .label = "Display"}},
+                .actions           = {plugin::action<Project>("reset", "Reset Simulation", "Restore the stationary rest state and physical step zero on the next safe frame-slot update.", "simulation", [](Project& project) { project.reset_pending_ = true; })},
+                .settings =
+                    {
+                        plugin::toggle<Project>("show_stretch", "Show Stretch", true, "display",
+                            [](Project& project, const bool value) {
+                                project.show_stretch_ = value;
+                                ++project.content_revision_;
+                                ++project.revision;
+                            }),
+                        plugin::toggle<Project>("show_bending", "Show Bending", false, "display",
+                            [](Project& project, const bool value) {
+                                project.show_bending_ = value;
+                                ++project.content_revision_;
+                                ++project.revision;
+                            }),
+                        plugin::toggle<Project>("show_load", "Show Load", true, "display",
+                            [](Project& project, const bool value) {
+                                project.show_load_ = value;
+                                ++project.content_revision_;
+                                ++project.revision;
+                            }),
+                        plugin::float_setting<Project>("stretch_width", "Stretch Width", 1.5F, "display", 0.25F, 8.0F, 0.25F,
+                            [](Project& project, const float value) {
+                                project.stretch_width_ = value;
+                                ++project.content_revision_;
+                                ++project.revision;
+                            }),
+                        plugin::float_setting<Project>("bending_width", "Bending Width", 1.0F, "display", 0.25F, 8.0F, 0.25F,
+                            [](Project& project, const float value) {
+                                project.bending_width_ = value;
+                                ++project.content_revision_;
+                                ++project.revision;
+                            }),
+                        plugin::float_setting<Project>("load_width", "Load Width", 3.0F, "display", 0.25F, 8.0F, 0.25F,
+                            [](Project& project, const float value) {
+                                project.load_width_ = value;
+                                ++project.content_revision_;
+                                ++project.revision;
+                            }),
+                        plugin::float_setting<Project>("load_scale", "Load Scale", 0.08F, "display", 0.005F, 0.15F, 0.005F,
+                            [](Project& project, const float value) {
+                                project.load_scale_ = value;
+                                ++project.content_revision_;
+                                ++project.revision;
+                            }),
+                        plugin::float_setting<Project>("strain_range", "Strain Range", 0.10F, "display", 0.01F, 0.50F, 0.01F,
+                            [](Project& project, const float value) {
+                                project.strain_range_ = value;
+                                ++project.content_revision_;
+                                ++project.revision;
+                            }),
+                    },
             };
             return value;
         }();
@@ -269,7 +283,7 @@ namespace xayah::cloth::examples::forward::project {
 
     void Project::update(const plugin::UpdateInfo& update) {
         current_frame_slot_ = update.frame_slot_index;
-        update_running_ = update.update_running;
+        update_running_     = update.update_running;
         if (reset_pending_) {
             simulation_.reset();
             reset_pending_ = false;
@@ -287,13 +301,14 @@ namespace xayah::cloth::examples::forward::project {
     void Project::write_document(plugin::SceneBuilder& scene) const {
         scene.set_document(plugin::Document{
             .update = {.enabled = true, .initial_running = false, .step_delta_seconds = simulation_.options.time_step},
-            .navigation_target = {
-                .revision = 1u,
-                .focus = {1.50F, -1.00F, 0.00F},
-                .bounds_minimum = {-0.25F, -2.40F, -1.80F},
-                .bounds_maximum = {3.30F, 0.45F, 1.80F},
-                .navigation_up = {0.0F, 1.0F, 0.0F},
-            },
+            .navigation_target =
+                {
+                    .revision       = 1u,
+                    .focus          = {1.50F, -1.00F, 0.00F},
+                    .bounds_minimum = {-0.25F, -2.40F, -1.80F},
+                    .bounds_maximum = {3.30F, 0.45F, 1.80F},
+                    .navigation_up  = {0.0F, 1.0F, 0.0F},
+                },
             .active_camera_name = "Overview",
         });
     }
@@ -308,8 +323,7 @@ namespace xayah::cloth::examples::forward::project {
 
     void Project::write_controls(plugin::ControlBuilder& controls) const {
         const ForwardSimulationMetrics& metrics = simulation_.metrics;
-        controls
-            .phase(update_running_ ? "Forward Simulation" : "Paused")
+        controls.phase(update_running_ ? "Forward Simulation" : "Paused")
             .headline("64 x 96 prescribed-traveling-load forward cloth")
             .message("Bottom playback advances physical time directly. This gravity-free scene isolates a prescribed mass-independent traveling normal load; it is not an aerodynamic model.")
             .metric("grid", "Grid", std::format("{} x {}", simulation_.options.rows, simulation_.options.columns), "simulation")
@@ -341,52 +355,18 @@ namespace xayah::cloth::examples::forward::project {
     }
 
     void Project::write_visualization(const std::uint32_t frame_slot_index) {
-        const cudaStream_t stream = static_cast<cudaStream_t>(simulation_.context.resource.native_stream);
+        const cudaStream_t stream      = static_cast<cudaStream_t>(simulation_.context.resource->native_stream);
         const DeviceTopology& topology = simulation_.context.device_topology;
-        visualization_cuda::launch_segments(
-            stream,
-            static_cast<std::uint32_t>(simulation_.model.topology.stretch_springs.size()),
-            simulation_.current_state.positions.x.data,
-            simulation_.current_state.positions.y.data,
-            simulation_.current_state.positions.z.data,
-            topology.stretch.first.data,
-            topology.stretch.second.data,
-            stretch_rest_lengths_,
-            stretch_width_,
-            strain_range_,
-            visualization_cuda::SegmentStyle::estimate,
-            stretch_segments_.mapped_buffers[frame_slot_index]);
-        visualization_cuda::launch_segments(
-            stream,
-            static_cast<std::uint32_t>(simulation_.model.topology.bending_springs.size()),
-            simulation_.current_state.positions.x.data,
-            simulation_.current_state.positions.y.data,
-            simulation_.current_state.positions.z.data,
-            topology.bending.first.data,
-            topology.bending.second.data,
-            bending_rest_lengths_,
-            bending_width_,
-            strain_range_,
-            visualization_cuda::SegmentStyle::bending,
-            bending_segments_.mapped_buffers[frame_slot_index]);
+        project_cuda::launch_segments(stream, static_cast<std::uint32_t>(simulation_.model.topology.stretch_springs.size()), simulation_.current_state.positions.x.data, simulation_.current_state.positions.y.data, simulation_.current_state.positions.z.data, topology.stretch.first.data, topology.stretch.second.data, stretch_rest_lengths_, stretch_width_, strain_range_, project_cuda::SegmentStyle::stretch, stretch_segments_.mapped_buffers[frame_slot_index]);
+        project_cuda::launch_segments(stream, static_cast<std::uint32_t>(simulation_.model.topology.bending_springs.size()), simulation_.current_state.positions.x.data, simulation_.current_state.positions.y.data, simulation_.current_state.positions.z.data, topology.bending.first.data, topology.bending.second.data, bending_rest_lengths_, bending_width_, strain_range_, project_cuda::SegmentStyle::bending, bending_segments_.mapped_buffers[frame_slot_index]);
         for (std::uint32_t sample = 0u; sample < 3u; ++sample) {
-            visualization_cuda::launch_wind_arrow(
-                stream,
-                simulation_.options.width * static_cast<float>(sample + 1u) * 0.25F,
-                0.18F,
-                0.0F,
-                0.0F,
-                static_cast<float>(simulation_.metrics.sampled_load_accelerations[sample]),
-                load_scale_,
-                load_width_,
-                visualization_cuda::SegmentStyle::estimated_wind,
-                static_cast<std::byte*>(load_segments_.mapped_buffers[frame_slot_index]) + static_cast<std::size_t>(sample) * 3u * segment_bytes);
+            project_cuda::launch_load_arrow(stream, simulation_.options.width * static_cast<float>(sample + 1u) * 0.25F, 0.18F, 0.0F, static_cast<float>(simulation_.metrics.sampled_load_accelerations[sample]), load_scale_, load_width_, static_cast<std::byte*>(load_segments_.mapped_buffers[frame_slot_index]) + static_cast<std::size_t>(sample) * 3u * segment_bytes);
         }
         if (const cudaError_t status = cudaGetLastError(); status != cudaSuccess) throw std::runtime_error(std::format("cloth visualization kernel launch failed: {}", cudaGetErrorString(status)));
-        simulation_.context.synchronize();
+        simulation_.context.resource->synchronize();
         stretch_segments_.slot_revisions[frame_slot_index] = content_revision_;
         bending_segments_.slot_revisions[frame_slot_index] = content_revision_;
-        load_segments_.slot_revisions[frame_slot_index] = content_revision_;
+        load_segments_.slot_revisions[frame_slot_index]    = content_revision_;
     }
 
 } // namespace xayah::cloth::examples::forward::project

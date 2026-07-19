@@ -31,9 +31,12 @@ namespace xayah::smoke::examples::forward::project {
             ExternalBuffer() = default;
 
             ~ExternalBuffer() noexcept {
-                for (void* const mapped_buffer : mapped_buffers) if (mapped_buffer != nullptr && cudaFree(mapped_buffer) != cudaSuccess) std::terminate();
-                for (const cudaExternalMemory_t external_memory : external_memories_) if (external_memory != nullptr && cudaDestroyExternalMemory(external_memory) != cudaSuccess) std::terminate();
-                for (const cudaEvent_t ready_event : ready_events) if (ready_event != nullptr && cudaEventDestroy(ready_event) != cudaSuccess) std::terminate();
+                for (void* const mapped_buffer : mapped_buffers)
+                    if (mapped_buffer != nullptr && cudaFree(mapped_buffer) != cudaSuccess) std::terminate();
+                for (const cudaExternalMemory_t external_memory : external_memories_)
+                    if (external_memory != nullptr && cudaDestroyExternalMemory(external_memory) != cudaSuccess) std::terminate();
+                for (const cudaEvent_t ready_event : ready_events)
+                    if (ready_event != nullptr && cudaEventDestroy(ready_event) != cudaSuccess) std::terminate();
                 if (allocation.resource_id != 0u) {
                     try {
                         host_services_->release_gpu_buffer(allocation.resource_id);
@@ -43,10 +46,10 @@ namespace xayah::smoke::examples::forward::project {
                 }
             }
 
-            ExternalBuffer(const ExternalBuffer&) = delete;
-            ExternalBuffer(ExternalBuffer&&) = delete;
+            ExternalBuffer(const ExternalBuffer&)            = delete;
+            ExternalBuffer(ExternalBuffer&&)                 = delete;
             ExternalBuffer& operator=(const ExternalBuffer&) = delete;
-            ExternalBuffer& operator=(ExternalBuffer&&) = delete;
+            ExternalBuffer& operator=(ExternalBuffer&&)      = delete;
 
             void create(std::shared_ptr<plugin::HostServices> host_services, const std::uint32_t kind, const std::uint64_t byte_size) {
                 plugin::GpuBufferAllocation next_allocation = host_services->request_gpu_buffer(kind, byte_size);
@@ -61,10 +64,10 @@ namespace xayah::smoke::examples::forward::project {
                         cudaExternalMemoryHandleDesc memory_descriptor{};
                         memory_descriptor.size = next_allocation.byte_size;
 #if defined(_WIN32)
-                        memory_descriptor.type = cudaExternalMemoryHandleTypeOpaqueWin32;
+                        memory_descriptor.type                = cudaExternalMemoryHandleTypeOpaqueWin32;
                         memory_descriptor.handle.win32.handle = reinterpret_cast<void*>(slot.handle);
 #else
-                        memory_descriptor.type = cudaExternalMemoryHandleTypeOpaqueFd;
+                        memory_descriptor.type      = cudaExternalMemoryHandleTypeOpaqueFd;
                         memory_descriptor.handle.fd = static_cast<int>(slot.handle);
 #endif
                         cudaExternalMemory_t external_memory{};
@@ -72,8 +75,10 @@ namespace xayah::smoke::examples::forward::project {
 #if defined(_WIN32)
                         close_imported_handle(slot);
 #else
-                        if (import_status == cudaSuccess) slot.handle = 0u;
-                        else close_imported_handle(slot);
+                        if (import_status == cudaSuccess)
+                            slot.handle = 0u;
+                        else
+                            close_imported_handle(slot);
 #endif
                         if (import_status != cudaSuccess) throw std::runtime_error(std::format("cudaImportExternalMemory failed: {}", cudaGetErrorString(import_status)));
                         cudaExternalMemoryBufferDesc buffer_descriptor{};
@@ -94,18 +99,22 @@ namespace xayah::smoke::examples::forward::project {
                         next_ready_events.push_back(ready_event);
                     }
                 } catch (...) {
-                    for (plugin::GpuBufferSlotAllocation& slot : next_allocation.slots) if (slot.handle != 0u) close_imported_handle(slot);
-                    for (void* const mapped_buffer : next_mapped_buffers) if (mapped_buffer != nullptr) static_cast<void>(cudaFree(mapped_buffer));
-                    for (const cudaExternalMemory_t external_memory : external_memories) if (external_memory != nullptr) static_cast<void>(cudaDestroyExternalMemory(external_memory));
-                    for (const cudaEvent_t ready_event : next_ready_events) if (ready_event != nullptr) static_cast<void>(cudaEventDestroy(ready_event));
+                    for (plugin::GpuBufferSlotAllocation& slot : next_allocation.slots)
+                        if (slot.handle != 0u) close_imported_handle(slot);
+                    for (void* const mapped_buffer : next_mapped_buffers)
+                        if (mapped_buffer != nullptr) static_cast<void>(cudaFree(mapped_buffer));
+                    for (const cudaExternalMemory_t external_memory : external_memories)
+                        if (external_memory != nullptr) static_cast<void>(cudaDestroyExternalMemory(external_memory));
+                    for (const cudaEvent_t ready_event : next_ready_events)
+                        if (ready_event != nullptr) static_cast<void>(cudaEventDestroy(ready_event));
                     host_services->release_gpu_buffer(next_allocation.resource_id);
                     throw;
                 }
-                host_services_ = std::move(host_services);
-                allocation = std::move(next_allocation);
+                host_services_     = std::move(host_services);
+                allocation         = std::move(next_allocation);
                 external_memories_ = std::move(external_memories);
-                mapped_buffers = std::move(next_mapped_buffers);
-                ready_events = std::move(next_ready_events);
+                mapped_buffers     = std::move(next_mapped_buffers);
+                ready_events       = std::move(next_ready_events);
                 slot_revisions.assign(mapped_buffers.size(), 0u);
             }
 
@@ -164,14 +173,14 @@ namespace xayah::smoke::examples::forward::project {
                 forward[0] * right[1] - forward[1] * right[0],
             };
             return {
-                .name = "Overview",
-                .position = position,
-                .right = right,
-                .down = down,
-                .forward = forward,
+                .name                 = "Overview",
+                .position             = position,
+                .right                = right,
+                .down                 = down,
+                .forward              = forward,
                 .vertical_fov_degrees = 35.0F,
-                .near_plane = 0.01F,
-                .far_plane = 20.0F,
+                .near_plane           = 0.01F,
+                .far_plane            = 20.0F,
             };
         }
 
@@ -182,7 +191,7 @@ namespace xayah::smoke::examples::forward::project {
             const Vector3 end{origin.x + vector.x, origin.y + vector.y, origin.z + vector.z};
             const Vector3 side{-direction.z / std::sqrt(direction.x * direction.x + direction.z * direction.z), 0.0F, direction.x / std::sqrt(direction.x * direction.x + direction.z * direction.z)};
             const float head_length = 0.28F * length;
-            const float head_width = 0.16F * length;
+            const float head_width  = 0.16F * length;
             const Vector3 base{end.x - head_length * direction.x, end.y - head_length * direction.y, end.z - head_length * direction.z};
             return {{
                 {.sx = origin.x, .sy = origin.y, .sz = origin.z, .width = width, .ex = end.x, .ey = end.y, .ez = end.z, .flags = 0u, .r = color[0], .g = color[1], .b = color[2], .a = color[3]},
@@ -197,10 +206,10 @@ namespace xayah::smoke::examples::forward::project {
         std::uint64_t revision{1u};
 
         explicit Project(std::shared_ptr<plugin::HostServices> host_services);
-        Project(const Project&) = delete;
-        Project(Project&&) = delete;
+        Project(const Project&)            = delete;
+        Project(Project&&)                 = delete;
         Project& operator=(const Project&) = delete;
-        Project& operator=(Project&&) = delete;
+        Project& operator=(Project&&)      = delete;
 
         [[nodiscard]] static const plugin::PluginDefinition<Project>& plugin();
         [[nodiscard]] static Project open(plugin::OpenContext context);
@@ -236,31 +245,36 @@ namespace xayah::smoke::examples::forward::project {
     const plugin::PluginDefinition<Project>& Project::plugin() {
         static const plugin::PluginDefinition<Project> definition = [] {
             plugin::PluginDefinition<Project> value{
-                .id = "xayah.examples.smoke.forward",
-                .title = "CUDA 3D Double-Jet Forward Smoke",
+                .id                = "xayah.examples.smoke.forward",
+                .title             = "CUDA 3D Double-Jet Forward Smoke",
                 .open_action_label = "Open CUDA 3D Double-Jet Forward Smoke",
-                .sections = {{.id = "simulation", .label = "Simulation"}, {.id = "display", .label = "Display"}},
-                .actions = {plugin::action<Project>("reset", "Reset Simulation", "Restore the empty state and physical step zero on the next safe frame-slot update.", "simulation", [](Project& project) { project.reset_pending_ = true; })},
-                .settings = {
-                    plugin::float_setting<Project>("density_scale", "Density Scale", 10.0F, "display", 0.05F, 20.0F, 0.05F, [](Project& project, const float value) {
-                        project.density_scale_ = value;
-                        ++project.revision;
-                    }),
-                    plugin::toggle<Project>("show_emitters", "Show Emitters", true, "display", [](Project& project, const bool value) {
-                        project.show_emitters_ = value;
-                        ++project.revision;
-                    }),
-                    plugin::float_setting<Project>("emitter_width", "Emitter Width", 3.0F, "display", 0.25F, 8.0F, 0.25F, [](Project& project, const float value) {
-                        project.emitter_width_ = value;
-                        ++project.content_revision_;
-                        ++project.revision;
-                    }),
-                    plugin::float_setting<Project>("emitter_scale", "Emitter Scale", 0.04F, "display", 0.01F, 0.12F, 0.005F, [](Project& project, const float value) {
-                        project.emitter_scale_ = value;
-                        ++project.content_revision_;
-                        ++project.revision;
-                    }),
-                },
+                .sections          = {{.id = "simulation", .label = "Simulation"}, {.id = "display", .label = "Display"}},
+                .actions           = {plugin::action<Project>("reset", "Reset Simulation", "Restore the empty state and physical step zero on the next safe frame-slot update.", "simulation", [](Project& project) { project.reset_pending_ = true; })},
+                .settings =
+                    {
+                        plugin::float_setting<Project>("density_scale", "Density Scale", 10.0F, "display", 0.05F, 20.0F, 0.05F,
+                            [](Project& project, const float value) {
+                                project.density_scale_ = value;
+                                ++project.revision;
+                            }),
+                        plugin::toggle<Project>("show_emitters", "Show Emitters", true, "display",
+                            [](Project& project, const bool value) {
+                                project.show_emitters_ = value;
+                                ++project.revision;
+                            }),
+                        plugin::float_setting<Project>("emitter_width", "Emitter Width", 3.0F, "display", 0.25F, 8.0F, 0.25F,
+                            [](Project& project, const float value) {
+                                project.emitter_width_ = value;
+                                ++project.content_revision_;
+                                ++project.revision;
+                            }),
+                        plugin::float_setting<Project>("emitter_scale", "Emitter Scale", 0.04F, "display", 0.01F, 0.12F, 0.005F,
+                            [](Project& project, const float value) {
+                                project.emitter_scale_ = value;
+                                ++project.content_revision_;
+                                ++project.revision;
+                            }),
+                    },
             };
             return value;
         }();
@@ -273,7 +287,7 @@ namespace xayah::smoke::examples::forward::project {
 
     void Project::update(const plugin::UpdateInfo& update) {
         current_frame_slot_ = update.frame_slot_index;
-        update_running_ = update.update_running;
+        update_running_     = update.update_running;
         if (reset_pending_) {
             simulation_.reset();
             reset_pending_ = false;
@@ -291,18 +305,19 @@ namespace xayah::smoke::examples::forward::project {
     void Project::write_document(plugin::SceneBuilder& scene) const {
         scene.set_document(plugin::Document{
             .update = {.enabled = true, .initial_running = false, .step_delta_seconds = simulation_.options.time_step},
-            .navigation_target = {
-                .revision = 1u,
-                .focus = {0.50F, 0.70F, 0.50F},
-                .bounds_minimum = {-0.20F, -0.10F, -0.20F},
-                .bounds_maximum = {1.20F, 1.60F, 1.20F},
-                .navigation_up = {0.0F, 1.0F, 0.0F},
-            },
+            .navigation_target =
+                {
+                    .revision       = 1u,
+                    .focus          = {0.50F, 0.70F, 0.50F},
+                    .bounds_minimum = {-0.20F, -0.10F, -0.20F},
+                    .bounds_maximum = {1.20F, 1.60F, 1.20F},
+                    .navigation_up  = {0.0F, 1.0F, 0.0F},
+                },
             .active_camera_name = "Overview",
-            .materials = {{
-                .name = "Smoke",
-                .base_color = {0.72F, 0.76F, 0.80F, 0.92F},
-                .density = {.channel_name = "density", .component = 0u, .scale = density_scale_, .bias = 0.0F, .enabled = true},
+            .materials          = {{
+                         .name       = "Smoke",
+                         .base_color = {0.72F, 0.76F, 0.80F, 0.92F},
+                         .density    = {.channel_name = "density", .component = 0u, .scale = density_scale_, .bias = 0.0F, .enabled = true},
             }},
         });
     }
@@ -311,11 +326,11 @@ namespace xayah::smoke::examples::forward::project {
         plugin::Document document{
             .cameras = {overview_camera()},
             .volumes = {{
-                .name = "Double-Jet Smoke",
-                .dimensions = simulation_.options.resolution,
-                .origin = {0.0F, 0.0F, 0.0F},
-                .voxel_size = {simulation_.options.cell_size, simulation_.options.cell_size, simulation_.options.cell_size},
-                .channels = {{.name = "density", .format = plugin::VolumeChannelFormat::float32, .buffer_id = density_.allocation.resource_id, .device_pointer = reinterpret_cast<std::uintptr_t>(density_.mapped_buffers[current_frame_slot_]), .ready_event = reinterpret_cast<std::uintptr_t>(density_.ready_events[current_frame_slot_]), .source_byte_size = density_.allocation.byte_size}},
+                .name          = "Double-Jet Smoke",
+                .dimensions    = simulation_.options.resolution,
+                .origin        = {0.0F, 0.0F, 0.0F},
+                .voxel_size    = {simulation_.options.cell_size, simulation_.options.cell_size, simulation_.options.cell_size},
+                .channels      = {{.name = "density", .format = plugin::VolumeChannelFormat::float32, .buffer_id = density_.allocation.resource_id, .device_pointer = reinterpret_cast<std::uintptr_t>(density_.mapped_buffers[current_frame_slot_]), .ready_event = reinterpret_cast<std::uintptr_t>(density_.ready_events[current_frame_slot_]), .source_byte_size = density_.allocation.byte_size}},
                 .material_name = "Smoke",
             }},
         };
@@ -325,8 +340,7 @@ namespace xayah::smoke::examples::forward::project {
 
     void Project::write_controls(plugin::ControlBuilder& controls) const {
         const ForwardSimulationMetrics& metrics = simulation_.metrics;
-        controls
-            .phase(update_running_ ? "Forward Simulation" : "Paused")
+        controls.phase(update_running_ ? "Forward Simulation" : "Paused")
             .headline("128 x 192 x 128 double-jet forward smoke")
             .message("Bottom playback advances the physical simulation directly. Two pulsed Gaussian emitters collide near the center and vorticity confinement exposes the resulting shear structures.")
             .metric("grid", "Grid", std::format("{} x {} x {}", simulation_.options.resolution[0], simulation_.options.resolution[1], simulation_.options.resolution[2]), "simulation")
@@ -353,18 +367,18 @@ namespace xayah::smoke::examples::forward::project {
     }
 
     void Project::write_visualization(const std::uint32_t frame_slot_index) {
-        const cudaStream_t stream = static_cast<cudaStream_t>(simulation_.context.resource.native_stream);
-        simulation_.context.resource.copy_device(density_.mapped_buffers[frame_slot_index], simulation_.current_state.density.values.data, density_.allocation.byte_size);
-        const std::array<SegmentInstance, 3u> left = emitter_arrow(simulation_.options.left_source_center, simulation_.options.left_acceleration, emitter_scale_, emitter_width_, {0.10F, 0.84F, 0.96F, 1.00F});
+        const cudaStream_t stream = static_cast<cudaStream_t>(simulation_.context.resource->native_stream);
+        simulation_.context.resource->copy_device(density_.mapped_buffers[frame_slot_index], simulation_.current_state.density.values.data, density_.allocation.byte_size);
+        const std::array<SegmentInstance, 3u> left  = emitter_arrow(simulation_.options.left_source_center, simulation_.options.left_acceleration, emitter_scale_, emitter_width_, {0.10F, 0.84F, 0.96F, 1.00F});
         const std::array<SegmentInstance, 3u> right = emitter_arrow(simulation_.options.right_source_center, simulation_.options.right_acceleration, emitter_scale_, emitter_width_, {1.00F, 0.48F, 0.08F, 1.00F});
         std::array<SegmentInstance, 6u> segments{};
         std::ranges::copy(left, segments.begin());
         std::ranges::copy(right, segments.begin() + 3u);
-        simulation_.context.resource.copy_from_host(emitters_.mapped_buffers[frame_slot_index], segments.data(), sizeof(segments));
+        simulation_.context.resource->copy_from_host(emitters_.mapped_buffers[frame_slot_index], segments.data(), sizeof(segments));
         density_.record_ready(frame_slot_index, stream);
         emitters_.record_ready(frame_slot_index, stream);
-        simulation_.context.resource.synchronize();
-        density_.slot_revisions[frame_slot_index] = content_revision_;
+        simulation_.context.resource->synchronize();
+        density_.slot_revisions[frame_slot_index]  = content_revision_;
         emitters_.slot_revisions[frame_slot_index] = content_revision_;
     }
 

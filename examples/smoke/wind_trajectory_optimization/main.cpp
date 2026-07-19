@@ -4,10 +4,10 @@ import xayah.solver;
 
 namespace {
 
-    constexpr float epsilon = 1.0e-2F;
-    constexpr double finite_difference_tolerance = 1.0e-2;
-    constexpr double adjoint_tolerance = 1.0e-4;
-    constexpr double tape_tolerance = 1.0e-6;
+    constexpr float epsilon                       = 1.0e-2F;
+    constexpr double finite_difference_tolerance  = 1.0e-2;
+    constexpr double adjoint_tolerance            = 1.0e-4;
+    constexpr double tape_tolerance               = 1.0e-6;
     constexpr std::size_t optimization_iterations = 2000u;
 
 } // namespace
@@ -23,7 +23,7 @@ int main() {
              std::pair<std::string_view, xayah::smoke::examples::wind_trajectory_optimization::WindTrajectoryGradientCheck>{"recompute_step_cache", recompute},
          }) {
         const double finite_difference_error = std::abs(metrics.finite_difference - metrics.jvp_inner_product) / std::max({1.0e-12, std::abs(metrics.finite_difference), std::abs(metrics.jvp_inner_product)});
-        const double adjoint_error = std::abs(metrics.jvp_inner_product - metrics.vjp_inner_product) / std::max({1.0e-12, std::abs(metrics.jvp_inner_product), std::abs(metrics.vjp_inner_product)});
+        const double adjoint_error           = std::abs(metrics.jvp_inner_product - metrics.vjp_inner_product) / std::max({1.0e-12, std::abs(metrics.jvp_inner_product), std::abs(metrics.vjp_inner_product)});
         std::println("  {}: fd={:.9e}, jvp={:.9e}, vjp={:.9e}, fd/jvp={:.3e}, jvp/vjp={:.3e}", name, metrics.finite_difference, metrics.jvp_inner_product, metrics.vjp_inner_product, finite_difference_error, adjoint_error);
         if (finite_difference_error > finite_difference_tolerance) throw std::runtime_error(std::format("{} wind finite-difference check failed", name));
         if (adjoint_error > adjoint_tolerance) throw std::runtime_error(std::format("{} wind adjoint check failed", name));
@@ -36,12 +36,10 @@ int main() {
     std::println("  iteration {:4}: loss={:.9e}, loss_ratio={:.3e}, keyframe_error={:.3e}, gradient_norm={:.9e}", task.metrics.iteration, task.metrics.loss, task.metrics.loss_ratio, task.metrics.keyframe_relative_error, task.metrics.gradient_norm);
     for (std::size_t iteration = 0u; iteration < optimization_iterations; ++iteration) {
         task.optimize_step();
-        if (task.metrics.iteration % 10u == 0u)
-            std::println("  iteration {:4}: loss={:.9e}, loss_ratio={:.3e}, keyframe_error={:.3e}, gradient_norm={:.9e}", task.metrics.iteration, task.metrics.loss, task.metrics.loss_ratio, task.metrics.keyframe_relative_error, task.metrics.gradient_norm);
+        if (task.metrics.iteration % 10u == 0u) std::println("  iteration {:4}: loss={:.9e}, loss_ratio={:.3e}, keyframe_error={:.3e}, gradient_norm={:.9e}", task.metrics.iteration, task.metrics.loss, task.metrics.loss_ratio, task.metrics.keyframe_relative_error, task.metrics.gradient_norm);
     }
     std::println("  final keyframe_relative_error={:.3e}, final/initial_loss={:.3e}", task.metrics.keyframe_relative_error, task.metrics.loss_ratio);
-    for (std::size_t keyframe = 0u; keyframe < task.target_keyframes.size(); ++keyframe)
-        std::println("  keyframe {}: target=({:+.6f}, {:+.6f}), estimate=({:+.6f}, {:+.6f})", keyframe, task.target_keyframes[keyframe].x, task.target_keyframes[keyframe].z, task.estimated_keyframes[keyframe].x, task.estimated_keyframes[keyframe].z);
+    for (std::size_t keyframe = 0u; keyframe < task.target_keyframes.size(); ++keyframe) std::println("  keyframe {}: target=({:+.6f}, {:+.6f}), estimate=({:+.6f}, {:+.6f})", keyframe, task.target_keyframes[keyframe].x, task.target_keyframes[keyframe].z, task.estimated_keyframes[keyframe].x, task.estimated_keyframes[keyframe].z);
     std::cout.flush();
     if (task.metrics.keyframe_relative_error > 1.0e-2) throw std::runtime_error("wind keyframe recovery check failed");
     if (task.metrics.loss_ratio > 1.0e-4) throw std::runtime_error("wind trajectory loss reduction check failed");

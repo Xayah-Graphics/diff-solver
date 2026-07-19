@@ -49,10 +49,10 @@ export namespace xayah::cloth::examples::forward {
         explicit ForwardSimulation(ForwardSimulationOptions options = {});
         ~ForwardSimulation() noexcept;
 
-        ForwardSimulation(const ForwardSimulation&) = delete;
-        ForwardSimulation(ForwardSimulation&&) = delete;
+        ForwardSimulation(const ForwardSimulation&)            = delete;
+        ForwardSimulation(ForwardSimulation&&)                 = delete;
         ForwardSimulation& operator=(const ForwardSimulation&) = delete;
-        ForwardSimulation& operator=(ForwardSimulation&&) = delete;
+        ForwardSimulation& operator=(ForwardSimulation&&)      = delete;
 
         void reset();
         void step();

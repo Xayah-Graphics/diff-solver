@@ -1,6 +1,7 @@
 module;
 
-#include "kernels.cuh"
+#include "operators.h"
+
 #include <cuda_runtime_api.h>
 
 module xayah.smoke.operators;
@@ -84,7 +85,7 @@ namespace xayah::smoke {
             const std::array faces{boundary.x_min, boundary.x_max, boundary.y_min, boundary.y_max, boundary.z_min, boundary.z_max};
             cuda_kernels::ScalarBoundaryData packed{};
             for (std::size_t face = 0u; face < faces.size(); ++face) {
-                packed.modes[face] = static_cast<std::uint32_t>(faces[face].mode);
+                packed.modes[face]  = static_cast<std::uint32_t>(faces[face].mode);
                 packed.values[face] = faces[face].value;
             }
             return packed;
@@ -94,8 +95,8 @@ namespace xayah::smoke {
             const std::array faces{boundary.x_min, boundary.x_max, boundary.y_min, boundary.y_max, boundary.z_min, boundary.z_max};
             cuda_kernels::VelocityBoundaryData packed{};
             for (std::size_t face = 0u; face < faces.size(); ++face) {
-                packed.modes[face] = static_cast<std::uint32_t>(faces[face].mode);
-                packed.values[face * 3u] = faces[face].value.x;
+                packed.modes[face]            = static_cast<std::uint32_t>(faces[face].mode);
+                packed.values[face * 3u]      = faces[face].value.x;
                 packed.values[face * 3u + 1u] = faces[face].value.y;
                 packed.values[face * 3u + 2u] = faces[face].value.z;
             }

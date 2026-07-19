@@ -1,8 +1,8 @@
-#include "visualization.h"
+#include "project.h"
 
 #include <cuda_runtime.h>
 
-namespace xayah::cloth::examples::visualization_cuda {
+namespace xayah::cloth::examples::stretch_stiffness_inverse::project_cuda {
 
     namespace {
 
@@ -87,33 +87,6 @@ namespace xayah::cloth::examples::visualization_cuda {
             output[spring_index] = instance;
         }
 
-        __global__ void write_wind_arrow(const float origin_x, const float origin_y, const float origin_z, const float wind_x, const float wind_z, const float scale, const float width, const SegmentStyle style, SegmentInstance* const output) {
-            const float vector_x = scale * wind_x;
-            const float vector_z = scale * wind_z;
-            const float end_x = origin_x + vector_x;
-            const float end_z = origin_z + vector_z;
-            const float length = sqrtf(vector_x * vector_x + vector_z * vector_z);
-            float direction_x = 0.0F;
-            float direction_z = 0.0F;
-            if (length > 1.0e-6F) {
-                direction_x = vector_x / length;
-                direction_z = vector_z / length;
-            }
-            const float head_length = 0.28F * length;
-            const float head_width = 0.16F * length;
-            const float base_x = end_x - head_length * direction_x;
-            const float base_z = end_z - head_length * direction_z;
-            const float perpendicular_x = -direction_z;
-            const float perpendicular_z = direction_x;
-            const float red = style == SegmentStyle::target_wind ? 0.10F : 1.00F;
-            const float green = style == SegmentStyle::target_wind ? 0.84F : 0.48F;
-            const float blue = style == SegmentStyle::target_wind ? 0.96F : 0.08F;
-            const float alpha = style == SegmentStyle::target_wind ? 0.72F : 1.00F;
-            output[0] = {.sx = origin_x, .sy = origin_y, .sz = origin_z, .width = width, .ex = end_x, .ey = origin_y, .ez = end_z, .flags = 0u, .r = red, .g = green, .b = blue, .a = alpha};
-            output[1] = {.sx = end_x, .sy = origin_y, .sz = end_z, .width = width, .ex = base_x + head_width * perpendicular_x, .ey = origin_y, .ez = base_z + head_width * perpendicular_z, .flags = 0u, .r = red, .g = green, .b = blue, .a = alpha};
-            output[2] = {.sx = end_x, .sy = origin_y, .sz = end_z, .width = width, .ex = base_x - head_width * perpendicular_x, .ey = origin_y, .ez = base_z - head_width * perpendicular_z, .flags = 0u, .r = red, .g = green, .b = blue, .a = alpha};
-        }
-
     } // namespace
 
     void launch_segments(
@@ -133,8 +106,4 @@ namespace xayah::cloth::examples::visualization_cuda {
         write_segments<<<(spring_count + 255u) / 256u, 256u, 0u, stream>>>(spring_count, position_x, position_y, position_z, spring_first, spring_second, rest_lengths, width, strain_range, style, static_cast<SegmentInstance*>(output));
     }
 
-    void launch_wind_arrow(const cudaStream_t stream, const float origin_x, const float origin_y, const float origin_z, const float wind_x, const float wind_z, const float scale, const float width, const SegmentStyle style, void* const output) {
-        write_wind_arrow<<<1u, 1u, 0u, stream>>>(origin_x, origin_y, origin_z, wind_x, wind_z, scale, width, style, static_cast<SegmentInstance*>(output));
-    }
-
-} // namespace xayah::cloth::examples::visualization_cuda
+} // namespace xayah::cloth::examples::stretch_stiffness_inverse::project_cuda

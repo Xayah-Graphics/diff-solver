@@ -5,7 +5,7 @@ import std;
 export namespace xayah::spectra::plugin {
 
     enum class GpuResourceHandleKind : std::uint32_t {
-        OpaqueWin32 = 0u,
+        OpaqueWin32          = 0u,
         OpaqueFileDescriptor = 1u,
     };
 
@@ -21,7 +21,7 @@ export namespace xayah::spectra::plugin {
     };
 
     inline constexpr std::uint32_t GpuBufferKindViewportSegmentSet = 3u;
-    inline constexpr std::uint32_t GpuBufferKindVolumeChannel = 0u;
+    inline constexpr std::uint32_t GpuBufferKindVolumeChannel      = 0u;
 
     struct HostServices {
         std::move_only_function<GpuBufferAllocation(std::uint32_t, std::uint64_t)> request_gpu_buffer{};
@@ -34,8 +34,8 @@ export namespace xayah::spectra::plugin {
     };
 
     enum class OptionKind : std::uint32_t {
-        Bool = 4u,
-        Float = 5u,
+        Bool            = 4u,
+        Float           = 5u,
         UnsignedInteger = 6u,
     };
 
@@ -328,7 +328,7 @@ namespace xayah::spectra::plugin {
     thread_local std::string plugin_export_error{};
     typedef void SpectraSceneInstance;
     typedef std::uint32_t SpectraSceneResult;
-    constexpr std::uint32_t ResultOk = 0u;
+    constexpr std::uint32_t ResultOk    = 0u;
     constexpr std::uint32_t ResultError = 1u;
 
     struct RawSpan {
@@ -700,54 +700,54 @@ namespace xayah::spectra::plugin {
             for (const ActionBinding<Project>& action : definition.actions) this->actions.push_back({.id = action.schema.id.c_str(), .label = action.schema.label.c_str(), .description = action.schema.description.c_str(), .section_id = action.schema.section_id.c_str()});
             for (const SettingBinding<Project>& setting : definition.settings) this->settings.push_back(option_view(setting.schema));
             this->plugin = SpectraScenePlugin{
-                .abi_version = plugin_abi_version,
-                .struct_size = sizeof(SpectraScenePlugin),
-                .id = definition.id.c_str(),
-                .title = definition.title.c_str(),
-                .open_action_label = definition.open_action_label.c_str(),
-                .sections = RawSpan{.data = this->sections.data(), .count = this->sections.size()},
-                .open_options = RawSpan{.data = this->open_options.data(), .count = this->open_options.size()},
-                .control_actions = RawSpan{.data = this->actions.data(), .count = this->actions.size()},
-                .control_settings = RawSpan{.data = this->settings.data(), .count = this->settings.size()},
-                .create = &create,
-                .destroy = &destroy,
-                .update = &update,
-                .document = &document,
-                .frame = &frame,
-                .scene_revision = &revision,
-                .control_action = &control_action,
+                .abi_version            = plugin_abi_version,
+                .struct_size            = sizeof(SpectraScenePlugin),
+                .id                     = definition.id.c_str(),
+                .title                  = definition.title.c_str(),
+                .open_action_label      = definition.open_action_label.c_str(),
+                .sections               = RawSpan{.data = this->sections.data(), .count = this->sections.size()},
+                .open_options           = RawSpan{.data = this->open_options.data(), .count = this->open_options.size()},
+                .control_actions        = RawSpan{.data = this->actions.data(), .count = this->actions.size()},
+                .control_settings       = RawSpan{.data = this->settings.data(), .count = this->settings.size()},
+                .create                 = &create,
+                .destroy                = &destroy,
+                .update                 = &update,
+                .document               = &document,
+                .frame                  = &frame,
+                .scene_revision         = &revision,
+                .control_action         = &control_action,
                 .control_setting_update = &control_setting,
-                .control_state = &control_state,
-                .last_error = &last_error,
+                .control_state          = &control_state,
+                .last_error             = &last_error,
             };
         }
 
         static SpectraSceneControlOptionSchema option_view(const OptionSchema& option) {
             return SpectraSceneControlOptionSchema{
-                .key = option.key.c_str(),
-                .label = option.label.c_str(),
-                .description = option.description.c_str(),
-                .kind = static_cast<std::uint32_t>(option.kind),
-                .required = 0u,
-                .default_value = option.default_value.c_str(),
-                .section_id = option.section_id.c_str(),
-                .presentation = option.slider ? 1u : 0u,
+                .key               = option.key.c_str(),
+                .label             = option.label.c_str(),
+                .description       = option.description.c_str(),
+                .kind              = static_cast<std::uint32_t>(option.kind),
+                .required          = 0u,
+                .default_value     = option.default_value.c_str(),
+                .section_id        = option.section_id.c_str(),
+                .presentation      = option.slider ? 1u : 0u,
                 .has_numeric_range = option.slider ? 1u : 0u,
-                .numeric_min = option.numeric_min,
-                .numeric_max = option.numeric_max,
-                .numeric_step = option.numeric_step,
-                .unsigned_min = option.unsigned_min,
-                .unsigned_max = option.unsigned_max,
-                .unsigned_step = option.unsigned_step,
+                .numeric_min       = option.numeric_min,
+                .numeric_max       = option.numeric_max,
+                .numeric_step      = option.numeric_step,
+                .unsigned_min      = option.unsigned_min,
+                .unsigned_max      = option.unsigned_max,
+                .unsigned_step     = option.unsigned_step,
             };
         }
 
         static SpectraSceneTransform transform() {
             SpectraSceneTransform value{};
             value.rotation[3] = 1.0F;
-            value.scale[0] = 1.0F;
-            value.scale[1] = 1.0F;
-            value.scale[2] = 1.0F;
+            value.scale[0]    = 1.0F;
+            value.scale[1]    = 1.0F;
+            value.scale[2]    = 1.0F;
             return value;
         }
 
@@ -763,24 +763,24 @@ namespace xayah::spectra::plugin {
         static SpectraSceneVolumeChannelBinding volume_binding_view(const VolumeChannelBinding& binding) {
             return SpectraSceneVolumeChannelBinding{
                 .channel_name = binding.channel_name.c_str(),
-                .component = binding.component,
-                .scale = binding.scale,
-                .bias = binding.bias,
-                .enabled = binding.enabled ? 1u : 0u,
+                .component    = binding.component,
+                .scale        = binding.scale,
+                .bias         = binding.bias,
+                .enabled      = binding.enabled ? 1u : 0u,
             };
         }
 
         static SpectraSceneMaterial material_view(const Material& material) {
             SpectraSceneMaterial view{
-                .name = material.name.c_str(),
-                .model = "volume",
-                .alpha_mode = "blend",
-                .roughness = 0.5F,
-                .alpha_cutoff = 0.5F,
-                .volume_mode = 0u,
-                .volume_density = volume_binding_view(material.density),
+                .name            = material.name.c_str(),
+                .model           = "volume",
+                .alpha_mode      = "blend",
+                .roughness       = 0.5F,
+                .alpha_cutoff    = 0.5F,
+                .volume_mode     = 0u,
+                .volume_density  = volume_binding_view(material.density),
                 .volume_emission = volume_binding_view(material.emission),
-                .volume_color = volume_binding_view(material.color),
+                .volume_color    = volume_binding_view(material.color),
             };
             std::ranges::copy(material.base_color, view.base_color);
             return view;
@@ -788,14 +788,14 @@ namespace xayah::spectra::plugin {
 
         static SpectraSceneVolumeChannel volume_channel_view(const VolumeChannel& channel) {
             return SpectraSceneVolumeChannel{
-                .name = channel.name.c_str(),
-                .format = static_cast<std::uint32_t>(channel.format),
-                .source_kind = 1u,
-                .index_encoding = 0u,
-                .buffer_id = channel.buffer_id,
+                .name                    = channel.name.c_str(),
+                .format                  = static_cast<std::uint32_t>(channel.format),
+                .source_kind             = 1u,
+                .index_encoding          = 0u,
+                .buffer_id               = channel.buffer_id,
                 .external_device_pointer = channel.device_pointer,
-                .external_ready_event = channel.ready_event,
-                .source_byte_size = channel.source_byte_size,
+                .external_ready_event    = channel.ready_event,
+                .source_byte_size        = channel.source_byte_size,
             };
         }
 
@@ -811,16 +811,16 @@ namespace xayah::spectra::plugin {
 
         static SpectraSceneViewportSegmentSet segment_view(const ViewportSegmentSet& segment) {
             return SpectraSceneViewportSegmentSet{
-                .name = segment.name.c_str(),
-                .owner = SpectraSceneEntityRef{.kind = 4u, .name = segment.owner_name.c_str()},
-                .source_kind = 1u,
-                .segment_count = segment.segment_count,
-                .buffer_id = segment.buffer_id,
+                .name             = segment.name.c_str(),
+                .owner            = SpectraSceneEntityRef{.kind = 4u, .name = segment.owner_name.c_str()},
+                .source_kind      = 1u,
+                .segment_count    = segment.segment_count,
+                .buffer_id        = segment.buffer_id,
                 .source_byte_size = segment.source_byte_size,
-                .width = segment.width,
-                .width_mode = 0u,
-                .depth_mode = segment.overlay ? 1u : 0u,
-                .transform = transform(),
+                .width            = segment.width,
+                .width_mode       = 0u,
+                .depth_mode       = segment.overlay ? 1u : 0u,
+                .transform        = transform(),
             };
         }
 
@@ -836,9 +836,9 @@ namespace xayah::spectra::plugin {
             for (std::size_t index = 0u; index < cache.document.volumes.size(); ++index) cache.volumes.push_back(volume_view(cache.document.volumes[index], cache.volume_channels[index]));
             for (const ViewportSegmentSet& segment : cache.document.viewport_segment_sets) cache.segments.push_back(segment_view(segment));
             return SpectraSceneItems{
-                .materials = RawSpan{.data = cache.materials.data(), .count = cache.materials.size()},
-                .cameras = RawSpan{.data = cache.cameras.data(), .count = cache.cameras.size()},
-                .volumes = RawSpan{.data = cache.volumes.data(), .count = cache.volumes.size()},
+                .materials             = RawSpan{.data = cache.materials.data(), .count = cache.materials.size()},
+                .cameras               = RawSpan{.data = cache.cameras.data(), .count = cache.cameras.size()},
+                .volumes               = RawSpan{.data = cache.volumes.data(), .count = cache.volumes.size()},
                 .viewport_segment_sets = RawSpan{.data = cache.segments.data(), .count = cache.segments.size()},
             };
         }
@@ -852,9 +852,9 @@ namespace xayah::spectra::plugin {
                 plugin_export_error.clear();
                 std::vector<Option> options{};
                 for (std::uint64_t index = 0u; index < open_info->options.count; ++index) options.push_back({.key = open_info->options.data[index].key, .value = open_info->options.data[index].value});
-                auto host = std::make_shared<HostServices>();
+                auto host                                = std::make_shared<HostServices>();
                 const SpectraSceneHostServices* raw_host = open_info->host_services;
-                host->request_gpu_buffer = [raw_host](const std::uint32_t kind, const std::uint64_t byte_size) {
+                host->request_gpu_buffer                 = [raw_host](const std::uint32_t kind, const std::uint64_t byte_size) {
                     const SpectraSceneGpuBufferRequest request{.struct_size = sizeof(SpectraSceneGpuBufferRequest), .kind = kind, .byte_size = byte_size};
                     SpectraSceneGpuBufferAllocation allocation{};
                     if (raw_host->request_gpu_buffer(raw_host->user_data, &request, &allocation) != ResultOk) throw std::runtime_error(raw_host->last_error(raw_host->user_data));
@@ -867,7 +867,7 @@ namespace xayah::spectra::plugin {
                     if (raw_host->release_gpu_buffer(raw_host->user_data, resource_id) != ResultOk) throw std::runtime_error(raw_host->last_error(raw_host->user_data));
                 };
                 Instance* created = new Instance{.project = Project::open(OpenContext{.options = std::move(options), .host_services = std::move(host)})};
-                *output = static_cast<SpectraSceneInstance*>(created);
+                *output           = static_cast<SpectraSceneInstance*>(created);
                 return ResultOk;
             } catch (const std::exception& error) {
                 plugin_export_error = error.what();
@@ -896,18 +896,18 @@ namespace xayah::spectra::plugin {
                 Instance& current = instance(value);
                 SceneBuilder builder{};
                 current.project.write_document(builder);
-                current.document.document = builder.take_document();
-                const Document& document = current.document.document;
-                output->struct_size = sizeof(SpectraSceneDocumentView);
-                output->timeline = SpectraSceneTimeline{};
-                output->update = SpectraSceneUpdateDescriptor{.enabled = document.update.enabled ? 1u : 0u, .initial_running = document.update.initial_running ? 1u : 0u, .step_delta_seconds = document.update.step_delta_seconds};
+                current.document.document          = builder.take_document();
+                const Document& document           = current.document.document;
+                output->struct_size                = sizeof(SpectraSceneDocumentView);
+                output->timeline                   = SpectraSceneTimeline{};
+                output->update                     = SpectraSceneUpdateDescriptor{.enabled = document.update.enabled ? 1u : 0u, .initial_running = document.update.initial_running ? 1u : 0u, .step_delta_seconds = document.update.step_delta_seconds};
                 output->navigation_target.revision = document.navigation_target.revision;
                 std::ranges::copy(document.navigation_target.focus, output->navigation_target.focus);
                 std::ranges::copy(document.navigation_target.bounds_minimum, output->navigation_target.bounds_minimum);
                 std::ranges::copy(document.navigation_target.bounds_maximum, output->navigation_target.bounds_maximum);
                 std::ranges::copy(document.navigation_target.navigation_up, output->navigation_target.navigation_up);
                 output->active_camera_name = document.active_camera_name.c_str();
-                output->items = scene_items(current.document);
+                output->items              = scene_items(current.document);
                 return ResultOk;
             } catch (const std::exception& error) {
                 instance(value).error = error.what();
@@ -921,8 +921,8 @@ namespace xayah::spectra::plugin {
                 SceneBuilder builder{};
                 current.project.write_frame(builder, FrameInfo{.time_seconds = info.time_seconds, .frame_index = info.frame_index});
                 current.frame.document = builder.take_document();
-                output->struct_size = sizeof(SpectraSceneFrameView);
-                output->items = scene_items(current.frame);
+                output->struct_size    = sizeof(SpectraSceneFrameView);
+                output->items          = scene_items(current.frame);
                 return ResultOk;
             } catch (const std::exception& error) {
                 instance(value).error = error.what();
@@ -942,9 +942,9 @@ namespace xayah::spectra::plugin {
 
         static SpectraSceneResult control_action(SpectraSceneInstance* value, const char* action_id, SpectraSceneOptionSpan) noexcept {
             try {
-                Instance& current = instance(value);
+                Instance& current                                  = instance(value);
                 const std::vector<ActionBinding<Project>>& actions = Project::plugin().actions;
-                const auto found = std::ranges::find_if(actions, [action_id](const ActionBinding<Project>& action) { return action.schema.id == action_id; });
+                const auto found                                   = std::ranges::find_if(actions, [action_id](const ActionBinding<Project>& action) { return action.schema.id == action_id; });
                 found->invoke(current.project);
                 return ResultOk;
             } catch (const std::exception& error) {
@@ -955,9 +955,9 @@ namespace xayah::spectra::plugin {
 
         static SpectraSceneResult control_setting(SpectraSceneInstance* value, const char* key, const char* setting_value) noexcept {
             try {
-                Instance& current = instance(value);
+                Instance& current                                    = instance(value);
                 const std::vector<SettingBinding<Project>>& settings = Project::plugin().settings;
-                const auto found = std::ranges::find_if(settings, [key](const SettingBinding<Project>& setting) { return setting.schema.key == key; });
+                const auto found                                     = std::ranges::find_if(settings, [key](const SettingBinding<Project>& setting) { return setting.schema.key == key; });
                 found->update(current.project, setting_value);
                 return ResultOk;
             } catch (const std::exception& error) {

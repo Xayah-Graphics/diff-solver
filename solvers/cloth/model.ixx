@@ -15,30 +15,11 @@ export namespace xayah::cloth {
     struct Model;
 
     struct ExecutionContext {
-    private:
-        std::shared_ptr<cuda::Resource> resource_owner_;
-        ExecutionContext(const Configuration& configuration, const Topology& topology, ExecutionMode mode);
-
     public:
-        cuda::Resource& resource;
+        std::shared_ptr<cuda::Resource> resource;
         DeviceTopology device_topology;
 
-        void upload(std::span<const float> source, cuda::Buffer<float>& destination);
-        void download(const cuda::Buffer<float>& source, std::span<float> destination);
-        void upload(std::span<const Vector3> source, VectorField& destination);
-        void download(const VectorField& source, std::span<Vector3> destination);
-        void synchronize();
-
     private:
-        [[nodiscard]] cuda::Buffer<float> make_scalar_buffer(std::size_t size) const;
-        [[nodiscard]] cuda::Buffer<std::uint32_t> make_index_buffer(std::size_t size) const;
-        [[nodiscard]] VectorField make_vector_field(std::size_t size) const;
-        void zero(cuda::Buffer<float>& buffer);
-        void zero(VectorField& field);
-        void copy(const cuda::Buffer<float>& source, cuda::Buffer<float>& destination);
-        void copy(const VectorField& source, VectorField& destination);
-        void accumulate(const VectorField& source, VectorField& destination);
-
         State integrated_state_;
         ForceTangent force_tangent_;
         StateTangent integrated_state_tangent_;
@@ -48,24 +29,33 @@ export namespace xayah::cloth {
         friend struct Model;
     };
 
+    void upload(cuda::Resource& resource, std::span<const float> source, cuda::Buffer<float>& destination);
+    void upload(cuda::Resource& resource, std::span<const Vector3> source, VectorField& destination);
+    void download(cuda::Resource& resource, const VectorField& source, std::span<Vector3> destination);
+
     struct Model {
+    public:
         const Configuration configuration;
         const Topology topology;
 
         explicit Model(Configuration configuration);
 
-        [[nodiscard]] ExecutionContext make_context(ExecutionMode mode) const;
+        [[nodiscard]] ExecutionContext allocate_context(ExecutionMode mode) const;
 
-        [[nodiscard]] State make_state(ExecutionContext& context) const;
-        [[nodiscard]] Control make_control(ExecutionContext& context) const;
-        [[nodiscard]] Parameters make_parameters(ExecutionContext& context) const;
-        [[nodiscard]] StepCache make_step_cache(ExecutionContext& context) const;
-        [[nodiscard]] StateTangent make_state_tangent(ExecutionContext& context) const;
-        [[nodiscard]] ControlTangent make_control_tangent(ExecutionContext& context) const;
-        [[nodiscard]] ParameterTangent make_parameter_tangent(ExecutionContext& context) const;
-        [[nodiscard]] StateAdjoint make_state_adjoint(ExecutionContext& context) const;
-        [[nodiscard]] ControlAdjoint make_control_adjoint(ExecutionContext& context) const;
-        [[nodiscard]] ParameterAdjoint make_parameter_adjoint(ExecutionContext& context) const;
+    private:
+        [[nodiscard]] VectorField allocate_vector_field(ExecutionContext& context, std::size_t size) const;
+
+    public:
+        [[nodiscard]] State allocate_state(ExecutionContext& context) const;
+        [[nodiscard]] Control allocate_control(ExecutionContext& context) const;
+        [[nodiscard]] Parameters allocate_parameters(ExecutionContext& context) const;
+        [[nodiscard]] StepCache allocate_step_cache(ExecutionContext& context) const;
+        [[nodiscard]] StateTangent allocate_state_tangent(ExecutionContext& context) const;
+        [[nodiscard]] ControlTangent allocate_control_tangent(ExecutionContext& context) const;
+        [[nodiscard]] ParameterTangent allocate_parameter_tangent(ExecutionContext& context) const;
+        [[nodiscard]] StateAdjoint allocate_state_adjoint(ExecutionContext& context) const;
+        [[nodiscard]] ControlAdjoint allocate_control_adjoint(ExecutionContext& context) const;
+        [[nodiscard]] ParameterAdjoint allocate_parameter_adjoint(ExecutionContext& context) const;
 
         void copy_state(const State& source, State& destination, ExecutionContext& context) const;
         void copy_state_tangent(const StateTangent& source, StateTangent& destination, ExecutionContext& context) const;

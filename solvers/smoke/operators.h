@@ -1,5 +1,5 @@
-#ifndef XAYAH_SMOKE_KERNELS_CUH
-#define XAYAH_SMOKE_KERNELS_CUH
+#ifndef XAYAH_SMOKE_OPERATORS_H
+#define XAYAH_SMOKE_OPERATORS_H
 
 #include <cstdint>
 #include <cuda_runtime_api.h>

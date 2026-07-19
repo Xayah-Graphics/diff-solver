@@ -2,7 +2,8 @@ cmake_minimum_required(VERSION 4.4.0)
 set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "f35a9ac6-8463-4d38-8eec-5d6008153e7d")
 project(diff-solver VERSION 1.0.0 LANGUAGES CXX CUDA)
 
-option(DIFF_SOLVER_BUILD_SPECTRA_PLUGINS "Build the Spectra example plugins" ON)
+option(DIFF_SOLVER_BUILD_EXAMPLES "Build the examples" OFF)
+option(DIFF_SOLVER_BUILD_SPECTRA_PLUGINS "Build the Spectra example plugins" OFF)
 
 # ============================================================================
 # C++ Configuration
@@ -36,7 +37,7 @@ endif ()
 # ============================================================================
 # Dependencies
 # ============================================================================
-find_package(CUDAToolkit 13.2 EXACT REQUIRED)
+find_package(CUDAToolkit 13.2 REQUIRED)
 
 
 # ============================================================================
@@ -63,17 +64,15 @@ set_property(TARGET xayah-cuda PROPERTY CXX_MODULE_STD ON)
 
 
 # ============================================================================
-# Cloth CUDA Kernels and Modules
+# Cloth Solver
 # ============================================================================
-add_library(xayah-cloth-cuda-kernels STATIC solvers/cloth/kernels.cu)
-target_include_directories(xayah-cloth-cuda-kernels PRIVATE solvers/cloth)
-target_link_libraries(xayah-cloth-cuda-kernels PRIVATE CUDA::cudart)
-
 add_library(xayah-cloth)
 target_sources(
         xayah-cloth
         PRIVATE
         solvers/cloth/operators.cpp
+        solvers/cloth/operators.cu
+        solvers/cloth/operators.h
         solvers/cloth/model.cpp
         PUBLIC
         FILE_SET cxx_modules TYPE CXX_MODULES FILES
@@ -81,22 +80,21 @@ target_sources(
         solvers/cloth/operators.ixx
         solvers/cloth/model.ixx
 )
-target_link_libraries(xayah-cloth PUBLIC xayah-solver xayah-cuda PRIVATE xayah-cloth-cuda-kernels CUDA::cudart)
+target_include_directories(xayah-cloth PRIVATE solvers/cloth)
+target_link_libraries(xayah-cloth PUBLIC xayah-solver xayah-cuda PRIVATE CUDA::cudart)
 set_property(TARGET xayah-cloth PROPERTY CXX_MODULE_STD ON)
 
 
 # ============================================================================
-# Smoke CUDA Kernels and Modules
+# Smoke Solver
 # ============================================================================
-add_library(xayah-smoke-cuda-kernels STATIC solvers/smoke/kernels.cu)
-target_include_directories(xayah-smoke-cuda-kernels PRIVATE solvers/smoke)
-target_link_libraries(xayah-smoke-cuda-kernels PRIVATE CUDA::cudart)
-
 add_library(xayah-smoke)
 target_sources(
         xayah-smoke
         PRIVATE
         solvers/smoke/operators.cpp
+        solvers/smoke/operators.cu
+        solvers/smoke/operators.h
         solvers/smoke/model.cpp
         PUBLIC
         FILE_SET cxx_modules TYPE CXX_MODULES FILES
@@ -104,151 +102,110 @@ target_sources(
         solvers/smoke/operators.ixx
         solvers/smoke/model.ixx
 )
-target_link_libraries(xayah-smoke PUBLIC xayah-solver xayah-cuda PRIVATE xayah-smoke-cuda-kernels CUDA::cudart)
+target_include_directories(xayah-smoke PRIVATE solvers/smoke)
+target_link_libraries(xayah-smoke PUBLIC xayah-solver xayah-cuda PRIVATE CUDA::cudart)
 set_property(TARGET xayah-smoke PROPERTY CXX_MODULE_STD ON)
 
-# ============================================================================
-# Cloth Stretch-Stiffness Inverse Example
-# ============================================================================
-set(STRETCH_STIFFNESS_INVERSE_DIR examples/cloth/stretch_stiffness_inverse)
+if (DIFF_SOLVER_BUILD_EXAMPLES)
+    # Cloth Stretch-Stiffness Inverse Example
+    add_executable(
+            diff-cloth-stretch-stiffness-inverse
+            examples/cloth/stretch_stiffness_inverse/main.cpp
+            examples/cloth/stretch_stiffness_inverse/task.cpp
+            examples/cloth/stretch_stiffness_inverse/task.cu
+    )
+    target_sources(
+            diff-cloth-stretch-stiffness-inverse
+            PRIVATE
+            FILE_SET cxx_modules TYPE CXX_MODULES FILES
+            examples/cloth/stretch_stiffness_inverse/task.ixx
+    )
+    target_include_directories(diff-cloth-stretch-stiffness-inverse PRIVATE examples/cloth/stretch_stiffness_inverse)
+    target_link_libraries(diff-cloth-stretch-stiffness-inverse PRIVATE xayah-cloth CUDA::cudart)
+    set_property(TARGET diff-cloth-stretch-stiffness-inverse PROPERTY CXX_MODULE_STD ON)
+    if (MSVC)
+        target_link_options(diff-cloth-stretch-stiffness-inverse PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
+    endif ()
 
-add_library(xayah-example-cloth-stretch-stiffness-inverse-cuda STATIC ${STRETCH_STIFFNESS_INVERSE_DIR}/task.cu)
-target_include_directories(xayah-example-cloth-stretch-stiffness-inverse-cuda PRIVATE ${STRETCH_STIFFNESS_INVERSE_DIR})
-target_link_libraries(xayah-example-cloth-stretch-stiffness-inverse-cuda PRIVATE CUDA::cudart)
+    # Cloth Wind-Trajectory Optimization Example
+    add_executable(
+            diff-cloth-wind-trajectory-optimization
+            examples/cloth/wind_trajectory_optimization/main.cpp
+            examples/cloth/wind_trajectory_optimization/task.cpp
+            examples/cloth/wind_trajectory_optimization/task.cu
+    )
+    target_sources(
+            diff-cloth-wind-trajectory-optimization
+            PRIVATE
+            FILE_SET cxx_modules TYPE CXX_MODULES FILES
+            examples/cloth/wind_trajectory_optimization/task.ixx
+    )
+    target_include_directories(diff-cloth-wind-trajectory-optimization PRIVATE examples/cloth/wind_trajectory_optimization)
+    target_link_libraries(diff-cloth-wind-trajectory-optimization PRIVATE xayah-cloth CUDA::cudart)
+    set_property(TARGET diff-cloth-wind-trajectory-optimization PROPERTY CXX_MODULE_STD ON)
+    if (MSVC)
+        target_link_options(diff-cloth-wind-trajectory-optimization PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
+    endif ()
 
-add_library(xayah-example-cloth-stretch-stiffness-inverse)
-target_sources(
-        xayah-example-cloth-stretch-stiffness-inverse
-        PRIVATE
-        ${STRETCH_STIFFNESS_INVERSE_DIR}/task.cpp
-        PUBLIC
-        FILE_SET cxx_modules TYPE CXX_MODULES FILES
-        ${STRETCH_STIFFNESS_INVERSE_DIR}/task.ixx
-)
-target_link_libraries(xayah-example-cloth-stretch-stiffness-inverse PUBLIC xayah-cloth PRIVATE xayah-example-cloth-stretch-stiffness-inverse-cuda CUDA::cudart)
-set_property(TARGET xayah-example-cloth-stretch-stiffness-inverse PROPERTY CXX_MODULE_STD ON)
+    # Cloth Forward Example
+    add_executable(
+            diff-cloth-forward
+            examples/cloth/forward/main.cpp
+            examples/cloth/forward/simulation.cpp
+            examples/cloth/forward/simulation.cu
+    )
+    target_sources(
+            diff-cloth-forward
+            PRIVATE
+            FILE_SET cxx_modules TYPE CXX_MODULES FILES
+            examples/cloth/forward/simulation.ixx
+    )
+    target_include_directories(diff-cloth-forward PRIVATE examples/cloth/forward)
+    target_link_libraries(diff-cloth-forward PRIVATE xayah-cloth CUDA::cudart)
+    set_property(TARGET diff-cloth-forward PROPERTY CXX_MODULE_STD ON)
+    if (MSVC)
+        target_link_options(diff-cloth-forward PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
+    endif ()
 
-add_executable(diff-cloth-stretch-stiffness-inverse ${STRETCH_STIFFNESS_INVERSE_DIR}/main.cpp)
-target_link_libraries(diff-cloth-stretch-stiffness-inverse PRIVATE xayah-example-cloth-stretch-stiffness-inverse)
-set_property(TARGET diff-cloth-stretch-stiffness-inverse PROPERTY CXX_MODULE_STD ON)
-if (MSVC)
-    target_link_options(diff-cloth-stretch-stiffness-inverse PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
-endif ()
+    # Smoke Wind-Trajectory Optimization Example
+    add_executable(
+            diff-smoke-wind-trajectory-optimization
+            examples/smoke/wind_trajectory_optimization/main.cpp
+            examples/smoke/wind_trajectory_optimization/task.cpp
+            examples/smoke/wind_trajectory_optimization/task.cu
+    )
+    target_sources(
+            diff-smoke-wind-trajectory-optimization
+            PRIVATE
+            FILE_SET cxx_modules TYPE CXX_MODULES FILES
+            examples/smoke/wind_trajectory_optimization/task.ixx
+    )
+    target_include_directories(diff-smoke-wind-trajectory-optimization PRIVATE examples/smoke/wind_trajectory_optimization)
+    target_link_libraries(diff-smoke-wind-trajectory-optimization PRIVATE xayah-smoke CUDA::cudart)
+    set_property(TARGET diff-smoke-wind-trajectory-optimization PROPERTY CXX_MODULE_STD ON)
+    if (MSVC)
+        target_link_options(diff-smoke-wind-trajectory-optimization PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
+    endif ()
 
-
-# ============================================================================
-# Cloth Wind-Trajectory Optimization Example
-# ============================================================================
-set(WIND_TRAJECTORY_OPTIMIZATION_DIR examples/cloth/wind_trajectory_optimization)
-
-add_library(xayah-example-cloth-wind-trajectory-optimization-cuda STATIC ${WIND_TRAJECTORY_OPTIMIZATION_DIR}/task.cu)
-target_include_directories(xayah-example-cloth-wind-trajectory-optimization-cuda PRIVATE ${WIND_TRAJECTORY_OPTIMIZATION_DIR})
-target_link_libraries(xayah-example-cloth-wind-trajectory-optimization-cuda PRIVATE CUDA::cudart)
-
-add_library(xayah-example-cloth-wind-trajectory-optimization)
-target_sources(
-        xayah-example-cloth-wind-trajectory-optimization
-        PRIVATE
-        ${WIND_TRAJECTORY_OPTIMIZATION_DIR}/task.cpp
-        PUBLIC
-        FILE_SET cxx_modules TYPE CXX_MODULES FILES
-        ${WIND_TRAJECTORY_OPTIMIZATION_DIR}/task.ixx
-)
-target_link_libraries(xayah-example-cloth-wind-trajectory-optimization PUBLIC xayah-cloth PRIVATE xayah-example-cloth-wind-trajectory-optimization-cuda CUDA::cudart)
-set_property(TARGET xayah-example-cloth-wind-trajectory-optimization PROPERTY CXX_MODULE_STD ON)
-
-add_executable(diff-cloth-wind-trajectory-optimization ${WIND_TRAJECTORY_OPTIMIZATION_DIR}/main.cpp)
-target_link_libraries(diff-cloth-wind-trajectory-optimization PRIVATE xayah-example-cloth-wind-trajectory-optimization)
-set_property(TARGET diff-cloth-wind-trajectory-optimization PROPERTY CXX_MODULE_STD ON)
-if (MSVC)
-    target_link_options(diff-cloth-wind-trajectory-optimization PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
-endif ()
-
-
-# ============================================================================
-# Cloth Forward Example
-# ============================================================================
-set(CLOTH_FORWARD_DIR examples/cloth/forward)
-
-add_library(xayah-example-cloth-forward-cuda STATIC ${CLOTH_FORWARD_DIR}/simulation.cu)
-target_include_directories(xayah-example-cloth-forward-cuda PRIVATE ${CLOTH_FORWARD_DIR})
-target_link_libraries(xayah-example-cloth-forward-cuda PRIVATE CUDA::cudart)
-
-add_library(xayah-example-cloth-forward)
-target_sources(
-        xayah-example-cloth-forward
-        PRIVATE
-        ${CLOTH_FORWARD_DIR}/simulation.cpp
-        PUBLIC
-        FILE_SET cxx_modules TYPE CXX_MODULES FILES
-        ${CLOTH_FORWARD_DIR}/simulation.ixx
-)
-target_link_libraries(xayah-example-cloth-forward PUBLIC xayah-cloth PRIVATE xayah-example-cloth-forward-cuda CUDA::cudart)
-set_property(TARGET xayah-example-cloth-forward PROPERTY CXX_MODULE_STD ON)
-
-add_executable(diff-cloth-forward ${CLOTH_FORWARD_DIR}/main.cpp)
-target_link_libraries(diff-cloth-forward PRIVATE xayah-example-cloth-forward)
-set_property(TARGET diff-cloth-forward PROPERTY CXX_MODULE_STD ON)
-if (MSVC)
-    target_link_options(diff-cloth-forward PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
-endif ()
-
-
-# ============================================================================
-# Smoke Wind-Trajectory Optimization Example
-# ============================================================================
-set(SMOKE_WIND_TRAJECTORY_OPTIMIZATION_DIR examples/smoke/wind_trajectory_optimization)
-
-add_library(xayah-example-smoke-wind-trajectory-optimization-cuda STATIC ${SMOKE_WIND_TRAJECTORY_OPTIMIZATION_DIR}/task.cu)
-target_include_directories(xayah-example-smoke-wind-trajectory-optimization-cuda PRIVATE ${SMOKE_WIND_TRAJECTORY_OPTIMIZATION_DIR})
-target_link_libraries(xayah-example-smoke-wind-trajectory-optimization-cuda PRIVATE CUDA::cudart)
-
-add_library(xayah-example-smoke-wind-trajectory-optimization)
-target_sources(
-        xayah-example-smoke-wind-trajectory-optimization
-        PRIVATE
-        ${SMOKE_WIND_TRAJECTORY_OPTIMIZATION_DIR}/task.cpp
-        PUBLIC
-        FILE_SET cxx_modules TYPE CXX_MODULES FILES
-        ${SMOKE_WIND_TRAJECTORY_OPTIMIZATION_DIR}/task.ixx
-)
-target_link_libraries(xayah-example-smoke-wind-trajectory-optimization PUBLIC xayah-smoke PRIVATE xayah-example-smoke-wind-trajectory-optimization-cuda CUDA::cudart)
-set_property(TARGET xayah-example-smoke-wind-trajectory-optimization PROPERTY CXX_MODULE_STD ON)
-
-add_executable(diff-smoke-wind-trajectory-optimization ${SMOKE_WIND_TRAJECTORY_OPTIMIZATION_DIR}/main.cpp)
-target_link_libraries(diff-smoke-wind-trajectory-optimization PRIVATE xayah-example-smoke-wind-trajectory-optimization)
-set_property(TARGET diff-smoke-wind-trajectory-optimization PROPERTY CXX_MODULE_STD ON)
-if (MSVC)
-    target_link_options(diff-smoke-wind-trajectory-optimization PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
-endif ()
-
-
-# ============================================================================
-# Smoke Forward Example
-# ============================================================================
-set(SMOKE_FORWARD_DIR examples/smoke/forward)
-
-add_library(xayah-example-smoke-forward-cuda STATIC ${SMOKE_FORWARD_DIR}/simulation.cu)
-target_include_directories(xayah-example-smoke-forward-cuda PRIVATE ${SMOKE_FORWARD_DIR})
-target_link_libraries(xayah-example-smoke-forward-cuda PRIVATE CUDA::cudart)
-
-add_library(xayah-example-smoke-forward)
-target_sources(
-        xayah-example-smoke-forward
-        PRIVATE
-        ${SMOKE_FORWARD_DIR}/simulation.cpp
-        PUBLIC
-        FILE_SET cxx_modules TYPE CXX_MODULES FILES
-        ${SMOKE_FORWARD_DIR}/simulation.ixx
-)
-target_link_libraries(xayah-example-smoke-forward PUBLIC xayah-smoke PRIVATE xayah-example-smoke-forward-cuda CUDA::cudart)
-set_property(TARGET xayah-example-smoke-forward PROPERTY CXX_MODULE_STD ON)
-
-add_executable(diff-smoke-forward ${SMOKE_FORWARD_DIR}/main.cpp)
-target_link_libraries(diff-smoke-forward PRIVATE xayah-example-smoke-forward CUDA::cudart)
-set_property(TARGET diff-smoke-forward PROPERTY CXX_MODULE_STD ON)
-if (MSVC)
-    target_link_options(diff-smoke-forward PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
+    # Smoke Forward Example
+    add_executable(
+            diff-smoke-forward
+            examples/smoke/forward/main.cpp
+            examples/smoke/forward/simulation.cpp
+            examples/smoke/forward/simulation.cu
+    )
+    target_sources(
+            diff-smoke-forward
+            PRIVATE
+            FILE_SET cxx_modules TYPE CXX_MODULES FILES
+            examples/smoke/forward/simulation.ixx
+    )
+    target_include_directories(diff-smoke-forward PRIVATE examples/smoke/forward)
+    target_link_libraries(diff-smoke-forward PRIVATE xayah-smoke CUDA::cudart)
+    set_property(TARGET diff-smoke-forward PROPERTY CXX_MODULE_STD ON)
+    if (MSVC)
+        target_link_options(diff-smoke-forward PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
+    endif ()
 endif ()
 
 
@@ -265,49 +222,105 @@ if (DIFF_SOLVER_BUILD_SPECTRA_PLUGINS)
     )
     set_property(TARGET xayah-spectra-plugin PROPERTY CXX_MODULE_STD ON)
 
-    add_library(xayah-example-cloth-visualization-cuda STATIC examples/cloth/visualization.cu)
-    target_include_directories(xayah-example-cloth-visualization-cuda PRIVATE examples/cloth)
-    target_link_libraries(xayah-example-cloth-visualization-cuda PRIVATE CUDA::cudart)
-
     # Cloth Stretch-Stiffness Inverse Example Plugin
-    add_library(cloth-stretch-stiffness-inverse-plugin SHARED ${STRETCH_STIFFNESS_INVERSE_DIR}/project.cpp)
-    target_link_libraries(cloth-stretch-stiffness-inverse-plugin PRIVATE xayah-spectra-plugin xayah-example-cloth-stretch-stiffness-inverse xayah-example-cloth-visualization-cuda CUDA::cudart)
+    add_library(
+            cloth-stretch-stiffness-inverse-plugin SHARED
+            examples/cloth/stretch_stiffness_inverse/project.cpp
+            examples/cloth/stretch_stiffness_inverse/project.cu
+            examples/cloth/stretch_stiffness_inverse/task.cpp
+            examples/cloth/stretch_stiffness_inverse/task.cu
+    )
+    target_sources(
+            cloth-stretch-stiffness-inverse-plugin
+            PRIVATE
+            FILE_SET cxx_modules TYPE CXX_MODULES FILES
+            examples/cloth/stretch_stiffness_inverse/task.ixx
+    )
+    target_include_directories(cloth-stretch-stiffness-inverse-plugin PRIVATE examples/cloth/stretch_stiffness_inverse)
+    target_link_libraries(cloth-stretch-stiffness-inverse-plugin PRIVATE xayah-spectra-plugin xayah-cloth CUDA::cudart)
     set_property(TARGET cloth-stretch-stiffness-inverse-plugin PROPERTY CXX_MODULE_STD ON)
     if (MSVC)
         target_link_options(cloth-stretch-stiffness-inverse-plugin PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
     endif ()
 
     # Cloth Wind-Trajectory Optimization Example Plugin
-    add_library(cloth-wind-trajectory-optimization-plugin SHARED ${WIND_TRAJECTORY_OPTIMIZATION_DIR}/project.cpp)
-    target_link_libraries(cloth-wind-trajectory-optimization-plugin PRIVATE xayah-spectra-plugin xayah-example-cloth-wind-trajectory-optimization xayah-example-cloth-visualization-cuda CUDA::cudart)
+    add_library(
+            cloth-wind-trajectory-optimization-plugin SHARED
+            examples/cloth/wind_trajectory_optimization/project.cpp
+            examples/cloth/wind_trajectory_optimization/project.cu
+            examples/cloth/wind_trajectory_optimization/task.cpp
+            examples/cloth/wind_trajectory_optimization/task.cu
+    )
+    target_sources(
+            cloth-wind-trajectory-optimization-plugin
+            PRIVATE
+            FILE_SET cxx_modules TYPE CXX_MODULES FILES
+            examples/cloth/wind_trajectory_optimization/task.ixx
+    )
+    target_include_directories(cloth-wind-trajectory-optimization-plugin PRIVATE examples/cloth/wind_trajectory_optimization)
+    target_link_libraries(cloth-wind-trajectory-optimization-plugin PRIVATE xayah-spectra-plugin xayah-cloth CUDA::cudart)
     set_property(TARGET cloth-wind-trajectory-optimization-plugin PROPERTY CXX_MODULE_STD ON)
     if (MSVC)
         target_link_options(cloth-wind-trajectory-optimization-plugin PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
     endif ()
 
     # Cloth Forward Example Plugin
-    add_library(cloth-forward-plugin SHARED ${CLOTH_FORWARD_DIR}/project.cpp)
-    target_link_libraries(cloth-forward-plugin PRIVATE xayah-spectra-plugin xayah-example-cloth-forward xayah-example-cloth-visualization-cuda CUDA::cudart)
+    add_library(
+            cloth-forward-plugin SHARED
+            examples/cloth/forward/project.cpp
+            examples/cloth/forward/project.cu
+            examples/cloth/forward/simulation.cpp
+            examples/cloth/forward/simulation.cu
+    )
+    target_sources(
+            cloth-forward-plugin
+            PRIVATE
+            FILE_SET cxx_modules TYPE CXX_MODULES FILES
+            examples/cloth/forward/simulation.ixx
+    )
+    target_include_directories(cloth-forward-plugin PRIVATE examples/cloth/forward)
+    target_link_libraries(cloth-forward-plugin PRIVATE xayah-spectra-plugin xayah-cloth CUDA::cudart)
     set_property(TARGET cloth-forward-plugin PROPERTY CXX_MODULE_STD ON)
     if (MSVC)
         target_link_options(cloth-forward-plugin PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
     endif ()
 
     # Smoke Wind-Trajectory Optimization Example Plugin
-    add_library(xayah-example-smoke-wind-trajectory-optimization-spectra-cuda STATIC ${SMOKE_WIND_TRAJECTORY_OPTIMIZATION_DIR}/project.cu)
-    target_include_directories(xayah-example-smoke-wind-trajectory-optimization-spectra-cuda PRIVATE ${SMOKE_WIND_TRAJECTORY_OPTIMIZATION_DIR})
-    target_link_libraries(xayah-example-smoke-wind-trajectory-optimization-spectra-cuda PRIVATE CUDA::cudart)
-
-    add_library(smoke-wind-trajectory-optimization-plugin SHARED ${SMOKE_WIND_TRAJECTORY_OPTIMIZATION_DIR}/project.cpp)
-    target_link_libraries(smoke-wind-trajectory-optimization-plugin PRIVATE xayah-spectra-plugin xayah-example-smoke-wind-trajectory-optimization xayah-example-smoke-wind-trajectory-optimization-spectra-cuda CUDA::cudart)
+    add_library(
+            smoke-wind-trajectory-optimization-plugin SHARED
+            examples/smoke/wind_trajectory_optimization/project.cpp
+            examples/smoke/wind_trajectory_optimization/project.cu
+            examples/smoke/wind_trajectory_optimization/task.cpp
+            examples/smoke/wind_trajectory_optimization/task.cu
+    )
+    target_sources(
+            smoke-wind-trajectory-optimization-plugin
+            PRIVATE
+            FILE_SET cxx_modules TYPE CXX_MODULES FILES
+            examples/smoke/wind_trajectory_optimization/task.ixx
+    )
+    target_include_directories(smoke-wind-trajectory-optimization-plugin PRIVATE examples/smoke/wind_trajectory_optimization)
+    target_link_libraries(smoke-wind-trajectory-optimization-plugin PRIVATE xayah-spectra-plugin xayah-smoke CUDA::cudart)
     set_property(TARGET smoke-wind-trajectory-optimization-plugin PROPERTY CXX_MODULE_STD ON)
     if (MSVC)
         target_link_options(smoke-wind-trajectory-optimization-plugin PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
     endif ()
 
     # Smoke Forward Example Plugin
-    add_library(smoke-forward-plugin SHARED ${SMOKE_FORWARD_DIR}/project.cpp)
-    target_link_libraries(smoke-forward-plugin PRIVATE xayah-spectra-plugin xayah-example-smoke-forward CUDA::cudart)
+    add_library(
+            smoke-forward-plugin SHARED
+            examples/smoke/forward/project.cpp
+            examples/smoke/forward/simulation.cpp
+            examples/smoke/forward/simulation.cu
+    )
+    target_sources(
+            smoke-forward-plugin
+            PRIVATE
+            FILE_SET cxx_modules TYPE CXX_MODULES FILES
+            examples/smoke/forward/simulation.ixx
+    )
+    target_include_directories(smoke-forward-plugin PRIVATE examples/smoke/forward)
+    target_link_libraries(smoke-forward-plugin PRIVATE xayah-spectra-plugin xayah-smoke CUDA::cudart)
     set_property(TARGET smoke-forward-plugin PROPERTY CXX_MODULE_STD ON)
     if (MSVC)
         target_link_options(smoke-forward-plugin PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")

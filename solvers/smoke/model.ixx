@@ -15,52 +15,11 @@ export namespace xayah::smoke {
     struct Model;
 
     struct ExecutionContext {
-    private:
-        std::shared_ptr<cuda::Resource> resource_owner_;
-        ExecutionContext(const Configuration& configuration, ExecutionMode mode);
-
     public:
-        cuda::Resource& resource;
+        std::shared_ptr<cuda::Resource> resource;
         DeviceDomain domain;
 
-        void upload(std::span<const float> source, cuda::Buffer<float>& destination);
-        void download(const cuda::Buffer<float>& source, std::span<float> destination);
-        void upload(std::span<const double> source, cuda::Buffer<double>& destination);
-        void download(const cuda::Buffer<double>& source, std::span<double> destination);
-        void upload(float source, cuda::Buffer<float>& destination);
-        void synchronize();
-
     private:
-        [[nodiscard]] cuda::Buffer<float> make_buffer(std::size_t size) const;
-        [[nodiscard]] cuda::Buffer<double> make_adjoint_buffer(std::size_t size) const;
-        [[nodiscard]] cuda::Buffer<std::uint32_t> make_index_buffer(std::size_t size) const;
-        [[nodiscard]] ScalarField make_scalar_field() const;
-        [[nodiscard]] CenteredVectorField make_centered_vector_field() const;
-        [[nodiscard]] StaggeredVectorField make_staggered_vector_field() const;
-        [[nodiscard]] VorticityCache make_vorticity_cache() const;
-        [[nodiscard]] ScalarAdjointField make_scalar_adjoint_field() const;
-        [[nodiscard]] CenteredVectorAdjointField make_centered_vector_adjoint_field() const;
-        [[nodiscard]] StaggeredVectorAdjointField make_staggered_vector_adjoint_field() const;
-        [[nodiscard]] VorticityAdjointCache make_vorticity_adjoint_cache() const;
-        void zero(cuda::Buffer<float>& buffer);
-        void zero(cuda::Buffer<double>& buffer);
-        void zero(ScalarField& field);
-        void zero(CenteredVectorField& field);
-        void zero(StaggeredVectorField& field);
-        void zero(VorticityCache& cache);
-        void zero(ScalarAdjointField& field);
-        void zero(CenteredVectorAdjointField& field);
-        void zero(StaggeredVectorAdjointField& field);
-        void zero(VorticityAdjointCache& cache);
-        void copy(const cuda::Buffer<float>& source, cuda::Buffer<float>& destination);
-        void copy(const cuda::Buffer<double>& source, cuda::Buffer<double>& destination);
-        void copy(const ScalarField& source, ScalarField& destination);
-        void copy(const StaggeredVectorField& source, StaggeredVectorField& destination);
-        void copy(const ScalarAdjointField& source, ScalarAdjointField& destination);
-        void copy(const StaggeredVectorAdjointField& source, StaggeredVectorAdjointField& destination);
-        void accumulate(const ScalarAdjointField& source, ScalarAdjointField& destination);
-        void accumulate(const StaggeredVectorAdjointField& source, StaggeredVectorAdjointField& destination);
-
         std::size_t cell_count_;
         std::array<std::size_t, 3u> face_counts_;
         StaggeredVectorField raw_advected_velocity_;
@@ -90,22 +49,34 @@ export namespace xayah::smoke {
     };
 
     struct Model {
+    public:
         const Configuration configuration;
 
         explicit Model(Configuration configuration);
 
-        [[nodiscard]] ExecutionContext make_context(ExecutionMode mode) const;
-        [[nodiscard]] State make_state(ExecutionContext& context) const;
-        [[nodiscard]] Control make_control(ExecutionContext& context) const;
-        [[nodiscard]] Parameters make_parameters(ExecutionContext& context) const;
-        [[nodiscard]] StepCache make_step_cache(ExecutionContext& context) const;
-        [[nodiscard]] VorticityAdjointCache make_vorticity_adjoint_cache(ExecutionContext& context) const;
-        [[nodiscard]] StateTangent make_state_tangent(ExecutionContext& context) const;
-        [[nodiscard]] ControlTangent make_control_tangent(ExecutionContext& context) const;
-        [[nodiscard]] ParameterTangent make_parameter_tangent(ExecutionContext& context) const;
-        [[nodiscard]] StateAdjoint make_state_adjoint(ExecutionContext& context) const;
-        [[nodiscard]] ControlAdjoint make_control_adjoint(ExecutionContext& context) const;
-        [[nodiscard]] ParameterAdjoint make_parameter_adjoint(ExecutionContext& context) const;
+        [[nodiscard]] ExecutionContext allocate_context(ExecutionMode mode) const;
+
+    private:
+        [[nodiscard]] ScalarField allocate_scalar_field(ExecutionContext& context) const;
+        [[nodiscard]] CenteredVectorField allocate_centered_vector_field(ExecutionContext& context) const;
+        [[nodiscard]] StaggeredVectorField allocate_staggered_vector_field(ExecutionContext& context) const;
+        [[nodiscard]] VorticityCache allocate_vorticity_cache(ExecutionContext& context) const;
+        [[nodiscard]] ScalarAdjointField allocate_scalar_adjoint_field(ExecutionContext& context) const;
+        [[nodiscard]] CenteredVectorAdjointField allocate_centered_vector_adjoint_field(ExecutionContext& context) const;
+        [[nodiscard]] StaggeredVectorAdjointField allocate_staggered_vector_adjoint_field(ExecutionContext& context) const;
+        [[nodiscard]] VorticityAdjointCache allocate_vorticity_adjoint_cache(ExecutionContext& context) const;
+
+    public:
+        [[nodiscard]] State allocate_state(ExecutionContext& context) const;
+        [[nodiscard]] Control allocate_control(ExecutionContext& context) const;
+        [[nodiscard]] Parameters allocate_parameters(ExecutionContext& context) const;
+        [[nodiscard]] StepCache allocate_step_cache(ExecutionContext& context) const;
+        [[nodiscard]] StateTangent allocate_state_tangent(ExecutionContext& context) const;
+        [[nodiscard]] ControlTangent allocate_control_tangent(ExecutionContext& context) const;
+        [[nodiscard]] ParameterTangent allocate_parameter_tangent(ExecutionContext& context) const;
+        [[nodiscard]] StateAdjoint allocate_state_adjoint(ExecutionContext& context) const;
+        [[nodiscard]] ControlAdjoint allocate_control_adjoint(ExecutionContext& context) const;
+        [[nodiscard]] ParameterAdjoint allocate_parameter_adjoint(ExecutionContext& context) const;
 
         void copy_state(const State& source, State& destination, ExecutionContext& context) const;
         void copy_state_tangent(const StateTangent& source, StateTangent& destination, ExecutionContext& context) const;

@@ -12,9 +12,8 @@
 #include <unistd.h>
 #endif
 
-#include <cuda_runtime_api.h>
-
 #include "project.h"
+#include <cuda_runtime_api.h>
 
 import std;
 import xayah.examples.smoke.wind_trajectory_optimization;
@@ -28,16 +27,19 @@ namespace xayah::smoke::examples::wind_trajectory_optimization::project {
 
     namespace {
 
-        constexpr std::uint64_t segment_bytes = 48u;
+        constexpr std::uint64_t segment_bytes    = 48u;
         constexpr std::uint32_t trajectory_steps = 90u;
 
         struct ExternalBuffer {
             ExternalBuffer() = default;
 
             ~ExternalBuffer() noexcept {
-                for (void* const mapped_buffer : mapped_buffers) if (mapped_buffer != nullptr && cudaFree(mapped_buffer) != cudaSuccess) std::terminate();
-                for (const cudaExternalMemory_t external_memory : external_memories_) if (external_memory != nullptr && cudaDestroyExternalMemory(external_memory) != cudaSuccess) std::terminate();
-                for (const cudaEvent_t ready_event : ready_events) if (ready_event != nullptr && cudaEventDestroy(ready_event) != cudaSuccess) std::terminate();
+                for (void* const mapped_buffer : mapped_buffers)
+                    if (mapped_buffer != nullptr && cudaFree(mapped_buffer) != cudaSuccess) std::terminate();
+                for (const cudaExternalMemory_t external_memory : external_memories_)
+                    if (external_memory != nullptr && cudaDestroyExternalMemory(external_memory) != cudaSuccess) std::terminate();
+                for (const cudaEvent_t ready_event : ready_events)
+                    if (ready_event != nullptr && cudaEventDestroy(ready_event) != cudaSuccess) std::terminate();
                 if (allocation.resource_id != 0u) {
                     try {
                         host_services_->release_gpu_buffer(allocation.resource_id);
@@ -47,10 +49,10 @@ namespace xayah::smoke::examples::wind_trajectory_optimization::project {
                 }
             }
 
-            ExternalBuffer(const ExternalBuffer&) = delete;
-            ExternalBuffer(ExternalBuffer&&) = delete;
+            ExternalBuffer(const ExternalBuffer&)            = delete;
+            ExternalBuffer(ExternalBuffer&&)                 = delete;
             ExternalBuffer& operator=(const ExternalBuffer&) = delete;
-            ExternalBuffer& operator=(ExternalBuffer&&) = delete;
+            ExternalBuffer& operator=(ExternalBuffer&&)      = delete;
 
             void create(std::shared_ptr<plugin::HostServices> host_services, const std::uint32_t kind, const std::uint64_t byte_size) {
                 plugin::GpuBufferAllocation next_allocation = host_services->request_gpu_buffer(kind, byte_size);
@@ -65,10 +67,10 @@ namespace xayah::smoke::examples::wind_trajectory_optimization::project {
                         cudaExternalMemoryHandleDesc memory_descriptor{};
                         memory_descriptor.size = next_allocation.byte_size;
 #if defined(_WIN32)
-                        memory_descriptor.type = cudaExternalMemoryHandleTypeOpaqueWin32;
+                        memory_descriptor.type                = cudaExternalMemoryHandleTypeOpaqueWin32;
                         memory_descriptor.handle.win32.handle = reinterpret_cast<void*>(slot.handle);
 #else
-                        memory_descriptor.type = cudaExternalMemoryHandleTypeOpaqueFd;
+                        memory_descriptor.type      = cudaExternalMemoryHandleTypeOpaqueFd;
                         memory_descriptor.handle.fd = static_cast<int>(slot.handle);
 #endif
                         cudaExternalMemory_t external_memory{};
@@ -76,8 +78,10 @@ namespace xayah::smoke::examples::wind_trajectory_optimization::project {
 #if defined(_WIN32)
                         close_imported_handle(slot);
 #else
-                        if (import_status == cudaSuccess) slot.handle = 0u;
-                        else close_imported_handle(slot);
+                        if (import_status == cudaSuccess)
+                            slot.handle = 0u;
+                        else
+                            close_imported_handle(slot);
 #endif
                         if (import_status != cudaSuccess) throw std::runtime_error(std::format("cudaImportExternalMemory failed: {}", cudaGetErrorString(import_status)));
                         cudaExternalMemoryBufferDesc buffer_descriptor{};
@@ -98,18 +102,22 @@ namespace xayah::smoke::examples::wind_trajectory_optimization::project {
                         next_ready_events.push_back(ready_event);
                     }
                 } catch (...) {
-                    for (plugin::GpuBufferSlotAllocation& slot : next_allocation.slots) if (slot.handle != 0u) close_imported_handle(slot);
-                    for (void* const mapped_buffer : next_mapped_buffers) if (mapped_buffer != nullptr) static_cast<void>(cudaFree(mapped_buffer));
-                    for (const cudaExternalMemory_t external_memory : external_memories) if (external_memory != nullptr) static_cast<void>(cudaDestroyExternalMemory(external_memory));
-                    for (const cudaEvent_t ready_event : next_ready_events) if (ready_event != nullptr) static_cast<void>(cudaEventDestroy(ready_event));
+                    for (plugin::GpuBufferSlotAllocation& slot : next_allocation.slots)
+                        if (slot.handle != 0u) close_imported_handle(slot);
+                    for (void* const mapped_buffer : next_mapped_buffers)
+                        if (mapped_buffer != nullptr) static_cast<void>(cudaFree(mapped_buffer));
+                    for (const cudaExternalMemory_t external_memory : external_memories)
+                        if (external_memory != nullptr) static_cast<void>(cudaDestroyExternalMemory(external_memory));
+                    for (const cudaEvent_t ready_event : next_ready_events)
+                        if (ready_event != nullptr) static_cast<void>(cudaEventDestroy(ready_event));
                     host_services->release_gpu_buffer(next_allocation.resource_id);
                     throw;
                 }
-                host_services_ = std::move(host_services);
-                allocation = std::move(next_allocation);
+                host_services_     = std::move(host_services);
+                allocation         = std::move(next_allocation);
                 external_memories_ = std::move(external_memories);
-                mapped_buffers = std::move(next_mapped_buffers);
-                ready_events = std::move(next_ready_events);
+                mapped_buffers     = std::move(next_mapped_buffers);
+                ready_events       = std::move(next_ready_events);
                 slot_revisions.assign(mapped_buffers.size(), 0u);
             }
 
@@ -160,22 +168,22 @@ namespace xayah::smoke::examples::wind_trajectory_optimization::project {
                 forward[0] * right[1] - forward[1] * right[0],
             };
             return {
-                .name = "Overview",
-                .position = position,
-                .right = right,
-                .down = down,
-                .forward = forward,
+                .name                 = "Overview",
+                .position             = position,
+                .right                = right,
+                .down                 = down,
+                .forward              = forward,
                 .vertical_fov_degrees = 38.0F,
-                .near_plane = 0.01F,
-                .far_plane = 20.0F,
+                .near_plane           = 0.01F,
+                .far_plane            = 20.0F,
             };
         }
 
         Vector3 interpolate_wind(const std::span<const Vector3> keyframes, const std::size_t control_step, const std::size_t trajectory_steps) {
-            const double coordinate = static_cast<double>(control_step) * static_cast<double>(keyframes.size() - 1u) / static_cast<double>(trajectory_steps - 1u);
-            const std::size_t first = (std::min)(static_cast<std::size_t>(coordinate), keyframes.size() - 2u);
+            const double coordinate  = static_cast<double>(control_step) * static_cast<double>(keyframes.size() - 1u) / static_cast<double>(trajectory_steps - 1u);
+            const std::size_t first  = (std::min) (static_cast<std::size_t>(coordinate), keyframes.size() - 2u);
             const std::size_t second = first + 1u;
-            const float weight = static_cast<float>(coordinate - static_cast<double>(first));
+            const float weight       = static_cast<float>(coordinate - static_cast<double>(first));
             return {
                 .x = (1.0F - weight) * keyframes[first].x + weight * keyframes[second].x,
                 .y = 0.0F,
@@ -189,10 +197,10 @@ namespace xayah::smoke::examples::wind_trajectory_optimization::project {
         std::uint64_t revision{1u};
 
         Project(ProjectOptions options, std::shared_ptr<plugin::HostServices> host_services);
-        Project(const Project&) = delete;
-        Project(Project&&) = delete;
+        Project(const Project&)            = delete;
+        Project(Project&&)                 = delete;
         Project& operator=(const Project&) = delete;
-        Project& operator=(Project&&) = delete;
+        Project& operator=(Project&&)      = delete;
 
         [[nodiscard]] static const plugin::PluginDefinition<Project>& plugin();
         [[nodiscard]] static Project open(plugin::OpenContext context);
@@ -238,22 +246,23 @@ namespace xayah::smoke::examples::wind_trajectory_optimization::project {
 
     Project::Project(ProjectOptions options, std::shared_ptr<plugin::HostServices> host_services)
         : options_(options), task_(WindTrajectoryOptimizationOptions{
-              .trajectory_steps = trajectory_steps,
-              .density_source_rate = options_.density_source_rate,
-              .temperature_source_rate = options_.temperature_source_rate,
-              .ambient_temperature = 0.0F,
-              .density_buoyancy = options_.density_buoyancy,
-              .temperature_buoyancy = options_.temperature_buoyancy,
-              .adam_learning_rate = options_.adam_learning_rate,
-          }), trajectory_step_(54u) {
+                                 .trajectory_steps        = trajectory_steps,
+                                 .density_source_rate     = options_.density_source_rate,
+                                 .temperature_source_rate = options_.temperature_source_rate,
+                                 .ambient_temperature     = 0.0F,
+                                 .density_buoyancy        = options_.density_buoyancy,
+                                 .temperature_buoyancy    = options_.temperature_buoyancy,
+                                 .adam_learning_rate      = options_.adam_learning_rate,
+                             }),
+          trajectory_step_(54u) {
         const std::uint64_t output_cells = 3u * static_cast<std::uint64_t>(task_.model.configuration.resolution[0]) * task_.model.configuration.resolution[1] * task_.model.configuration.resolution[2];
-        density_value_bytes_ = output_cells * sizeof(float);
+        density_value_bytes_             = output_cells * sizeof(float);
         density_.create(host_services, plugin::GpuBufferKindVolumeChannel, density_value_bytes_ + 4u * sizeof(double));
         color_.create(host_services, plugin::GpuBufferKindVolumeChannel, 3u * output_cells * sizeof(float));
         target_wind_.create(host_services, plugin::GpuBufferKindViewportSegmentSet, 3u * segment_bytes);
         estimated_wind_.create(host_services, plugin::GpuBufferKindViewportSegmentSet, 3u * segment_bytes);
         for (std::size_t frame_slot = 0u; frame_slot < density_.mapped_buffers.size(); ++frame_slot) write_visualization(static_cast<std::uint32_t>(frame_slot));
-        task_.context.synchronize();
+        task_.context.resource->synchronize();
     }
 
     const plugin::PluginDefinition<Project>& Project::plugin() {
@@ -274,60 +283,58 @@ namespace xayah::smoke::examples::wind_trajectory_optimization::project {
                 .actions = {plugin::action<Project>("reset", "Reset Optimization", "Restore zero wind keyframes and Adam state on the next safe frame-slot update.", "optimization", [](Project& project) { project.reset_pending_ = true; })},
                 .settings = {
                     plugin::unsigned_integer_setting<Project>("trajectory_frame", "Trajectory Frame", 54u, "display", 0u, 90u, 1u, [](Project& project, const std::uint64_t value) {
-                        project.trajectory_step_ = static_cast<std::uint32_t>(value);
-                        project.trajectory_playback_ = false;
-                        project.trajectory_playback_accumulator_ = 0.0;
-                        ++project.content_revision_;
-                        ++project.revision;
+                                project.trajectory_step_                                                                                                                                           = static_cast<std::uint32_t>(value);
+                                project.trajectory_playback_                                                                                                                                       = false;
+                                project.trajectory_playback_accumulator_                                                                                                                           = 0.0;
+                                ++project.content_revision_;
+                                ++project.revision;
                     }),
                     plugin::toggle<Project>("play_trajectory", "Play Trajectory", false, "display", [](Project& project, const bool value) {
-                        project.trajectory_playback_ = value;
-                        project.trajectory_playback_accumulator_ = 0.0;
+                                project.trajectory_playback_             = value;
+                                project.trajectory_playback_accumulator_ = 0.0;
                     }),
-                    plugin::toggle<Project>("loop_trajectory", "Loop Trajectory", true, "display", [](Project& project, const bool value) {
-                        project.loop_trajectory_ = value;
+                    plugin::toggle<Project>("loop_trajectory", "Loop Trajectory", true, "display", [](Project& project, const bool value) { project.loop_trajectory_ = value;
                     }),
                     plugin::toggle<Project>("show_target", "Show Target", true, "display", [](Project& project, const bool value) {
-                        project.show_target_ = value;
-                        ++project.content_revision_;
-                        ++project.revision;
+                                project.show_target_                                                                                                 = value;
+                                ++project.content_revision_;
+                                ++project.revision;
                     }),
                     plugin::toggle<Project>("show_estimate", "Show Estimate", true, "display", [](Project& project, const bool value) {
-                        project.show_estimate_ = value;
-                        ++project.content_revision_;
-                        ++project.revision;
+                                project.show_estimate_ = value;
+                                ++project.content_revision_;
+                                ++project.revision;
                     }),
                     plugin::toggle<Project>("show_difference", "Show Difference", true, "display", [](Project& project, const bool value) {
-                        project.show_difference_ = value;
-                        ++project.content_revision_;
-                        ++project.revision;
+                                project.show_difference_ = value;
+                                ++project.content_revision_;
+                                ++project.revision;
                     }),
                     plugin::toggle<Project>("show_wind", "Show Wind", true, "display", [](Project& project, const bool value) {
-                        project.show_wind_ = value;
-                        ++project.revision;
+                                project.show_wind_                                                                                                                     = value;
+                                ++project.revision;
                     }),
-                    plugin::float_setting<Project>("trajectory_fps", "Trajectory FPS", 15.0F, "display", 1.0F, 60.0F, 1.0F, [](Project& project, const float value) {
-                        project.trajectory_fps_ = value;
+                    plugin::float_setting<Project>("trajectory_fps", "Trajectory FPS", 15.0F, "display", 1.0F, 60.0F, 1.0F, [](Project& project, const float value) { project.trajectory_fps_ = value;
                     }),
                     plugin::float_setting<Project>("smoke_opacity_scale", "Smoke Opacity Scale", 3.0F, "display", 0.05F, 20.0F, 0.05F, [](Project& project, const float value) {
-                        project.smoke_opacity_scale_ = value;
-                        ++project.content_revision_;
-                        ++project.revision;
+                                project.smoke_opacity_scale_                                                                                                           = value;
+                                ++project.content_revision_;
+                                ++project.revision;
                     }),
                     plugin::float_setting<Project>("difference_opacity_scale", "Difference Opacity Scale", 20.0F, "display", 0.1F, 50.0F, 0.1F, [](Project& project, const float value) {
-                        project.difference_opacity_scale_ = value;
-                        ++project.content_revision_;
-                        ++project.revision;
+                                project.difference_opacity_scale_ = value;
+                                ++project.content_revision_;
+                                ++project.revision;
                     }),
                     plugin::float_setting<Project>("wind_width", "Wind Width", 3.0F, "display", 0.25F, 8.0F, 0.25F, [](Project& project, const float value) {
-                        project.wind_width_ = value;
-                        ++project.content_revision_;
-                        ++project.revision;
+                                project.wind_width_ = value;
+                                ++project.content_revision_;
+                                ++project.revision;
                     }),
                     plugin::float_setting<Project>("wind_scale", "Wind Scale", 0.18F, "display", 0.02F, 1.0F, 0.02F, [](Project& project, const float value) {
-                        project.wind_scale_ = value;
-                        ++project.content_revision_;
-                        ++project.revision;
+                                project.wind_scale_ = value;
+                                ++project.content_revision_;
+                                ++project.revision;
                     }),
                 },
             };
@@ -339,19 +346,25 @@ namespace xayah::smoke::examples::wind_trajectory_optimization::project {
     Project Project::open(plugin::OpenContext context) {
         ProjectOptions options{};
         for (const plugin::Option& option : context.options) {
-            if (option.key == "density_source_rate") options.density_source_rate = std::stof(option.value);
-            else if (option.key == "temperature_source_rate") options.temperature_source_rate = std::stof(option.value);
-            else if (option.key == "density_buoyancy") options.density_buoyancy = std::stof(option.value);
-            else if (option.key == "temperature_buoyancy") options.temperature_buoyancy = std::stof(option.value);
-            else if (option.key == "adam_learning_rate") options.adam_learning_rate = std::stof(option.value);
-            else if (option.key == "iterations_per_update") options.iterations_per_update = static_cast<std::uint32_t>(std::stoul(option.value));
+            if (option.key == "density_source_rate")
+                options.density_source_rate = std::stof(option.value);
+            else if (option.key == "temperature_source_rate")
+                options.temperature_source_rate = std::stof(option.value);
+            else if (option.key == "density_buoyancy")
+                options.density_buoyancy = std::stof(option.value);
+            else if (option.key == "temperature_buoyancy")
+                options.temperature_buoyancy = std::stof(option.value);
+            else if (option.key == "adam_learning_rate")
+                options.adam_learning_rate = std::stof(option.value);
+            else if (option.key == "iterations_per_update")
+                options.iterations_per_update = static_cast<std::uint32_t>(std::stoul(option.value));
         }
         return Project(options, std::move(context.host_services));
     }
 
     void Project::update(const plugin::UpdateInfo& update) {
         current_frame_slot_ = update.frame_slot_index;
-        update_running_ = update.update_running;
+        update_running_     = update.update_running;
         if (reset_pending_) {
             task_.reset();
             reset_pending_ = false;
@@ -370,11 +383,12 @@ namespace xayah::smoke::examples::wind_trajectory_optimization::project {
             const std::uint32_t frame_advance = static_cast<std::uint32_t>(trajectory_playback_accumulator_);
             if (frame_advance > 0u) {
                 trajectory_playback_accumulator_ -= frame_advance;
-                if (loop_trajectory_) trajectory_step_ = (trajectory_step_ + frame_advance) % (trajectory_steps + 1u);
+                if (loop_trajectory_)
+                    trajectory_step_ = (trajectory_step_ + frame_advance) % (trajectory_steps + 1u);
                 else {
                     trajectory_step_ = std::min(trajectory_step_ + frame_advance, trajectory_steps);
                     if (trajectory_step_ == trajectory_steps) {
-                        trajectory_playback_ = false;
+                        trajectory_playback_             = false;
                         trajectory_playback_accumulator_ = 0.0;
                     }
                 }
@@ -388,19 +402,20 @@ namespace xayah::smoke::examples::wind_trajectory_optimization::project {
     void Project::write_document(plugin::SceneBuilder& scene) const {
         scene.set_document(plugin::Document{
             .update = {.enabled = true, .initial_running = false, .step_delta_seconds = 1.0 / 60.0},
-            .navigation_target = {
-                .revision = 1u,
-                .focus = {1.5F, 0.72F, 0.50F},
-                .bounds_minimum = {-0.35F, -0.15F, -0.45F},
-                .bounds_maximum = {3.35F, 1.65F, 1.25F},
-                .navigation_up = {0.0F, 1.0F, 0.0F},
-            },
+            .navigation_target =
+                {
+                    .revision       = 1u,
+                    .focus          = {1.5F, 0.72F, 0.50F},
+                    .bounds_minimum = {-0.35F, -0.15F, -0.45F},
+                    .bounds_maximum = {3.35F, 1.65F, 1.25F},
+                    .navigation_up  = {0.0F, 1.0F, 0.0F},
+                },
             .active_camera_name = "Overview",
-            .materials = {{
-                .name = "Smoke Comparison",
-                .base_color = {1.0F, 1.0F, 1.0F, 0.90F},
-                .density = {.channel_name = "density", .component = 0u, .scale = 1.0F, .bias = 0.0F, .enabled = true},
-                .color = {.channel_name = "color", .component = 0u, .scale = 1.0F, .bias = 0.0F, .enabled = true},
+            .materials          = {{
+                         .name       = "Smoke Comparison",
+                         .base_color = {1.0F, 1.0F, 1.0F, 0.90F},
+                         .density    = {.channel_name = "density", .component = 0u, .scale = 1.0F, .bias = 0.0F, .enabled = true},
+                         .color      = {.channel_name = "color", .component = 0u, .scale = 1.0F, .bias = 0.0F, .enabled = true},
             }},
         });
     }
@@ -410,14 +425,15 @@ namespace xayah::smoke::examples::wind_trajectory_optimization::project {
         plugin::Document document{
             .cameras = {overview_camera()},
             .volumes = {{
-                .name = "Target, Estimated, and Difference Smoke",
+                .name       = "Target, Estimated, and Difference Smoke",
                 .dimensions = {3u * resolution[0], resolution[1], resolution[2]},
-                .origin = {0.0F, 0.0F, 0.0F},
+                .origin     = {0.0F, 0.0F, 0.0F},
                 .voxel_size = {task_.model.configuration.cell_size, task_.model.configuration.cell_size, task_.model.configuration.cell_size},
-                .channels = {
-                    {.name = "density", .format = plugin::VolumeChannelFormat::float32, .buffer_id = density_.allocation.resource_id, .device_pointer = reinterpret_cast<std::uintptr_t>(density_.mapped_buffers[current_frame_slot_]), .ready_event = reinterpret_cast<std::uintptr_t>(density_.ready_events[current_frame_slot_]), .source_byte_size = density_value_bytes_},
-                    {.name = "color", .format = plugin::VolumeChannelFormat::float32x3, .buffer_id = color_.allocation.resource_id, .device_pointer = reinterpret_cast<std::uintptr_t>(color_.mapped_buffers[current_frame_slot_]), .ready_event = reinterpret_cast<std::uintptr_t>(color_.ready_events[current_frame_slot_]), .source_byte_size = color_.allocation.byte_size},
-                },
+                .channels =
+                    {
+                        {.name = "density", .format = plugin::VolumeChannelFormat::float32, .buffer_id = density_.allocation.resource_id, .device_pointer = reinterpret_cast<std::uintptr_t>(density_.mapped_buffers[current_frame_slot_]), .ready_event = reinterpret_cast<std::uintptr_t>(density_.ready_events[current_frame_slot_]), .source_byte_size = density_value_bytes_},
+                        {.name = "color", .format = plugin::VolumeChannelFormat::float32x3, .buffer_id = color_.allocation.resource_id, .device_pointer = reinterpret_cast<std::uintptr_t>(color_.mapped_buffers[current_frame_slot_]), .ready_event = reinterpret_cast<std::uintptr_t>(color_.ready_events[current_frame_slot_]), .source_byte_size = color_.allocation.byte_size},
+                    },
                 .material_name = "Smoke Comparison",
             }},
         };
@@ -430,12 +446,11 @@ namespace xayah::smoke::examples::wind_trajectory_optimization::project {
 
     void Project::write_controls(plugin::ControlBuilder& controls) const {
         const WindTrajectoryOptimizationMetrics& metrics = task_.metrics;
-        const std::size_t control_step = std::min<std::size_t>(trajectory_step_, trajectory_steps - 1u);
-        const Vector3 target_wind = interpolate_wind(task_.target_keyframes, control_step, trajectory_steps);
-        const Vector3 estimated_wind = interpolate_wind(task_.estimated_keyframes, control_step, trajectory_steps);
-        const std::string phase = update_running_ ? (trajectory_playback_ ? "Optimizing + Playing Trajectory" : "Optimizing") : (trajectory_playback_ ? "Playing Trajectory" : "Paused");
-        controls
-            .phase(phase)
+        const std::size_t control_step                   = std::min<std::size_t>(trajectory_step_, trajectory_steps - 1u);
+        const Vector3 target_wind                        = interpolate_wind(task_.target_keyframes, control_step, trajectory_steps);
+        const Vector3 estimated_wind                     = interpolate_wind(task_.estimated_keyframes, control_step, trajectory_steps);
+        const std::string phase                          = update_running_ ? (trajectory_playback_ ? "Optimizing + Playing Trajectory" : "Optimizing") : (trajectory_playback_ ? "Playing Trajectory" : "Paused");
+        controls.phase(phase)
             .headline("Differentiable local-wind trajectory optimization")
             .message("Left: target density. Center: estimated density. Right: absolute density difference. Bottom playback advances optimization; trajectory playback and frame selection inspect the cached forward simulation.")
             .metric("iteration", "Iteration", std::to_string(metrics.iteration), "optimization")
@@ -469,34 +484,34 @@ namespace xayah::smoke::examples::wind_trajectory_optimization::project {
     }
 
     void Project::write_visualization(const std::uint32_t frame_slot_index) {
-        const cudaStream_t stream = static_cast<cudaStream_t>(task_.context.resource.native_stream);
+        const cudaStream_t stream                       = static_cast<cudaStream_t>(task_.context.resource->native_stream);
         const std::array<std::uint32_t, 3u>& resolution = task_.model.configuration.resolution;
-        const State& target_state = task_.target_trajectory.states[trajectory_step_];
-        const State& estimated_state = task_.estimated_trajectory.states[trajectory_step_];
-        const std::size_t control_step = std::min<std::size_t>(trajectory_step_, trajectory_steps - 1u);
-        const Vector3 target_wind = interpolate_wind(task_.target_keyframes, control_step, trajectory_steps);
-        const Vector3 estimated_wind = interpolate_wind(task_.estimated_keyframes, control_step, trajectory_steps);
-        double* const device_statistics = reinterpret_cast<double*>(static_cast<std::byte*>(density_.mapped_buffers[frame_slot_index]) + density_value_bytes_);
-        task_.context.resource.zero(device_statistics, 4u * sizeof(double));
+        const State& target_state                       = task_.target_trajectory.states[trajectory_step_];
+        const State& estimated_state                    = task_.estimated_trajectory.states[trajectory_step_];
+        const std::size_t control_step                  = std::min<std::size_t>(trajectory_step_, trajectory_steps - 1u);
+        const Vector3 target_wind                       = interpolate_wind(task_.target_keyframes, control_step, trajectory_steps);
+        const Vector3 estimated_wind                    = interpolate_wind(task_.estimated_keyframes, control_step, trajectory_steps);
+        double* const device_statistics                 = reinterpret_cast<double*>(static_cast<std::byte*>(density_.mapped_buffers[frame_slot_index]) + density_value_bytes_);
+        task_.context.resource->zero(device_statistics, 4u * sizeof(double));
         visualization_cuda::launch_volume(stream, resolution[0], resolution[1], resolution[2], target_state.density.values.data, estimated_state.density.values.data, show_target_, show_estimate_, show_difference_, smoke_opacity_scale_, difference_opacity_scale_, static_cast<float*>(density_.mapped_buffers[frame_slot_index]), static_cast<float*>(color_.mapped_buffers[frame_slot_index]), device_statistics);
         visualization_cuda::launch_wind_arrow(stream, 0.5F, 0.75F, -0.20F, target_wind.x, target_wind.z, wind_scale_, wind_width_, visualization_cuda::WindStyle::target, target_wind_.mapped_buffers[frame_slot_index]);
         visualization_cuda::launch_wind_arrow(stream, 1.5F, 0.75F, -0.20F, estimated_wind.x, estimated_wind.z, wind_scale_, wind_width_, visualization_cuda::WindStyle::estimated, estimated_wind_.mapped_buffers[frame_slot_index]);
         if (const cudaError_t status = cudaGetLastError(); status != cudaSuccess) throw std::runtime_error(std::format("smoke visualization kernel launch failed: {}", cudaGetErrorString(status)));
         std::array<double, 4u> statistics{};
-        task_.context.resource.copy_to_host(statistics.data(), device_statistics, 4u * sizeof(double));
-        task_.context.resource.synchronize();
-        const double cell_count = static_cast<double>(resolution[0]) * resolution[1] * resolution[2];
-        target_density_mean_ = statistics[0] / cell_count;
-        target_density_maximum_ = statistics[1];
-        estimated_density_mean_ = statistics[2] / cell_count;
+        task_.context.resource->copy_to_host(statistics.data(), device_statistics, 4u * sizeof(double));
+        task_.context.resource->synchronize();
+        const double cell_count    = static_cast<double>(resolution[0]) * resolution[1] * resolution[2];
+        target_density_mean_       = statistics[0] / cell_count;
+        target_density_maximum_    = statistics[1];
+        estimated_density_mean_    = statistics[2] / cell_count;
         estimated_density_maximum_ = statistics[3];
         density_.record_ready(frame_slot_index, stream);
         color_.record_ready(frame_slot_index, stream);
         target_wind_.record_ready(frame_slot_index, stream);
         estimated_wind_.record_ready(frame_slot_index, stream);
-        density_.slot_revisions[frame_slot_index] = content_revision_;
-        color_.slot_revisions[frame_slot_index] = content_revision_;
-        target_wind_.slot_revisions[frame_slot_index] = content_revision_;
+        density_.slot_revisions[frame_slot_index]        = content_revision_;
+        color_.slot_revisions[frame_slot_index]          = content_revision_;
+        target_wind_.slot_revisions[frame_slot_index]    = content_revision_;
         estimated_wind_.slot_revisions[frame_slot_index] = content_revision_;
     }
 
