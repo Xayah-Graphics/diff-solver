@@ -59,7 +59,7 @@ namespace xayah::smoke::examples::wind_trajectory_optimization {
     } // namespace
 
     WindTrajectoryOptimizationTask::WindTrajectoryOptimizationTask(WindTrajectoryOptimizationOptions next_options)
-        : options(next_options), model(make_configuration()), context(model.make_context()), target_trajectory{}, estimated_trajectory{}, target_keyframes{
+        : options(next_options), model(make_configuration()), context(model.make_context(ExecutionMode::differentiable)), target_trajectory{}, estimated_trajectory{}, target_keyframes{
               {.x = 0.0F, .y = 0.0F, .z = 0.0F},
               {.x = 2.0F, .y = 0.0F, .z = 0.8F},
               {.x = 1.2F, .y = 0.0F, .z = -1.2F},

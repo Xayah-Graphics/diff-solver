@@ -27,7 +27,7 @@ namespace xayah::smoke {
 
     } // namespace
 
-    ExecutionContext::ExecutionContext(const Configuration& configuration) : resource_owner_(std::make_shared<cuda::Resource>()), resource(*resource_owner_), domain{}, cell_count_(static_cast<std::size_t>(configuration.resolution[0]) * configuration.resolution[1] * configuration.resolution[2]), face_counts_{static_cast<std::size_t>(configuration.resolution[0] + 1u) * configuration.resolution[1] * configuration.resolution[2], static_cast<std::size_t>(configuration.resolution[0]) * (configuration.resolution[1] + 1u) * configuration.resolution[2], static_cast<std::size_t>(configuration.resolution[0]) * configuration.resolution[1] * (configuration.resolution[2] + 1u)} {
+    ExecutionContext::ExecutionContext(const Configuration& configuration, const ExecutionMode mode) : resource_owner_(std::make_shared<cuda::Resource>()), resource(*resource_owner_), domain{}, cell_count_(static_cast<std::size_t>(configuration.resolution[0]) * configuration.resolution[1] * configuration.resolution[2]), face_counts_{static_cast<std::size_t>(configuration.resolution[0] + 1u) * configuration.resolution[1] * configuration.resolution[2], static_cast<std::size_t>(configuration.resolution[0]) * (configuration.resolution[1] + 1u) * configuration.resolution[2], static_cast<std::size_t>(configuration.resolution[0]) * configuration.resolution[1] * (configuration.resolution[2] + 1u)} {
         domain = {
             .cell_mask = make_index_buffer(cell_count_),
             .collider_velocity = make_staggered_vector_field(),
@@ -125,27 +125,29 @@ namespace xayah::smoke {
         resource.copy_from_host(domain.collider_temperature.values.data, collider_temperature.data(), collider_temperature.size() * sizeof(float));
 
         raw_advected_velocity_ = make_staggered_vector_field();
-        sourced_density_tangent_ = make_scalar_field();
-        sourced_temperature_tangent_ = make_scalar_field();
-        force_tangent_ = make_centered_vector_field();
-        vorticity_tangent_scratch_ = make_vorticity_cache();
-        vorticity_adjoint_scratch_ = make_vorticity_adjoint_cache();
-        forced_velocity_tangent_ = make_staggered_vector_field();
-        raw_advected_velocity_tangent_ = make_staggered_vector_field();
-        advected_velocity_tangent_ = make_staggered_vector_field();
         pressure_ = make_scalar_field();
         pressure_rhs_ = make_scalar_field();
-        pressure_tangent_ = make_scalar_field();
-        pressure_rhs_tangent_ = make_scalar_field();
-        sourced_density_adjoint_ = make_scalar_adjoint_field();
-        sourced_temperature_adjoint_ = make_scalar_adjoint_field();
-        force_adjoint_ = make_centered_vector_adjoint_field();
-        projected_velocity_adjoint_ = make_staggered_vector_adjoint_field();
-        advected_velocity_adjoint_ = make_staggered_vector_adjoint_field();
-        raw_advected_velocity_adjoint_ = make_staggered_vector_adjoint_field();
-        forced_velocity_adjoint_ = make_staggered_vector_adjoint_field();
-        pressure_adjoint_ = make_scalar_adjoint_field();
-        pressure_rhs_adjoint_ = make_scalar_adjoint_field();
+        if (mode == ExecutionMode::differentiable) {
+            sourced_density_tangent_ = make_scalar_field();
+            sourced_temperature_tangent_ = make_scalar_field();
+            force_tangent_ = make_centered_vector_field();
+            vorticity_tangent_scratch_ = make_vorticity_cache();
+            vorticity_adjoint_scratch_ = make_vorticity_adjoint_cache();
+            forced_velocity_tangent_ = make_staggered_vector_field();
+            raw_advected_velocity_tangent_ = make_staggered_vector_field();
+            advected_velocity_tangent_ = make_staggered_vector_field();
+            pressure_tangent_ = make_scalar_field();
+            pressure_rhs_tangent_ = make_scalar_field();
+            sourced_density_adjoint_ = make_scalar_adjoint_field();
+            sourced_temperature_adjoint_ = make_scalar_adjoint_field();
+            force_adjoint_ = make_centered_vector_adjoint_field();
+            projected_velocity_adjoint_ = make_staggered_vector_adjoint_field();
+            advected_velocity_adjoint_ = make_staggered_vector_adjoint_field();
+            raw_advected_velocity_adjoint_ = make_staggered_vector_adjoint_field();
+            forced_velocity_adjoint_ = make_staggered_vector_adjoint_field();
+            pressure_adjoint_ = make_scalar_adjoint_field();
+            pressure_rhs_adjoint_ = make_scalar_adjoint_field();
+        }
         resource.synchronize();
     }
 
@@ -298,8 +300,8 @@ namespace xayah::smoke {
 
     Model::Model(Configuration next_configuration) : configuration(std::move(next_configuration)), source_{}, force_{}, velocity_{}, projection_{}, scalar_advection_{} {}
 
-    ExecutionContext Model::make_context() const {
-        return ExecutionContext(configuration);
+    ExecutionContext Model::make_context(const ExecutionMode mode) const {
+        return ExecutionContext(configuration, mode);
     }
 
     State Model::make_state(ExecutionContext& context) const {

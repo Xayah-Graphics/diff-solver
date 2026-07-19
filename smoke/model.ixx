@@ -7,12 +7,17 @@ import xayah.smoke.operators;
 
 export namespace xayah::smoke {
 
+    enum class ExecutionMode : std::uint32_t {
+        forward,
+        differentiable,
+    };
+
     struct Model;
 
     struct ExecutionContext {
     private:
         std::shared_ptr<cuda::Resource> resource_owner_;
-        ExecutionContext(const Configuration& configuration);
+        ExecutionContext(const Configuration& configuration, ExecutionMode mode);
 
     public:
         cuda::Resource& resource;
@@ -89,7 +94,7 @@ export namespace xayah::smoke {
 
         explicit Model(Configuration configuration);
 
-        [[nodiscard]] ExecutionContext make_context() const;
+        [[nodiscard]] ExecutionContext make_context(ExecutionMode mode) const;
         [[nodiscard]] State make_state(ExecutionContext& context) const;
         [[nodiscard]] Control make_control(ExecutionContext& context) const;
         [[nodiscard]] Parameters make_parameters(ExecutionContext& context) const;

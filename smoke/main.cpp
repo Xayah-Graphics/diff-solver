@@ -172,7 +172,7 @@ namespace {
     void check_projection() {
         xayah::smoke::Configuration configuration = periodic_configuration();
         xayah::smoke::Model model(configuration);
-        xayah::smoke::ExecutionContext context = model.make_context();
+        xayah::smoke::ExecutionContext context = model.make_context(xayah::smoke::ExecutionMode::differentiable);
         xayah::smoke::State input = model.make_state(context);
         xayah::smoke::State positive = model.make_state(context);
         xayah::smoke::State negative = model.make_state(context);
@@ -211,7 +211,7 @@ namespace {
     void check_scalar_advection() {
         xayah::smoke::Configuration configuration = periodic_configuration();
         xayah::smoke::Model model(configuration);
-        xayah::smoke::ExecutionContext context = model.make_context();
+        xayah::smoke::ExecutionContext context = model.make_context(xayah::smoke::ExecutionMode::differentiable);
         xayah::smoke::State input = model.make_state(context);
         xayah::smoke::State positive = model.make_state(context);
         xayah::smoke::State negative = model.make_state(context);
@@ -251,7 +251,7 @@ namespace {
     void check_velocity_evolution() {
         xayah::smoke::Configuration configuration = periodic_configuration();
         xayah::smoke::Model model(configuration);
-        xayah::smoke::ExecutionContext context = model.make_context();
+        xayah::smoke::ExecutionContext context = model.make_context(xayah::smoke::ExecutionMode::differentiable);
         xayah::smoke::State input = model.make_state(context);
         xayah::smoke::State positive = model.make_state(context);
         xayah::smoke::State negative = model.make_state(context);
@@ -299,7 +299,7 @@ namespace {
     void check_full_step() {
         xayah::smoke::Configuration configuration = periodic_configuration();
         xayah::smoke::Model model(configuration);
-        xayah::smoke::ExecutionContext context = model.make_context();
+        xayah::smoke::ExecutionContext context = model.make_context(xayah::smoke::ExecutionMode::differentiable);
         xayah::smoke::State state = model.make_state(context);
         xayah::smoke::Control control = model.make_control(context);
         xayah::smoke::Control positive_control = model.make_control(context);
@@ -361,7 +361,7 @@ namespace {
     void check_short_trajectory(const std::size_t step_count) {
         xayah::smoke::Configuration configuration = periodic_configuration();
         xayah::smoke::Model model(configuration);
-        xayah::smoke::ExecutionContext context = model.make_context();
+        xayah::smoke::ExecutionContext context = model.make_context(xayah::smoke::ExecutionMode::differentiable);
         xayah::smoke::State initial_state = model.make_state(context);
         xayah::smoke::Parameters parameters = model.make_parameters(context);
         context.upload(0.0F, parameters.ambient_temperature);
@@ -428,7 +428,7 @@ namespace {
         xayah::smoke::Configuration configuration = small_configuration();
         configuration.vorticity_confinement_enabled = true;
         xayah::smoke::Model model(configuration);
-        xayah::smoke::ExecutionContext context = model.make_context();
+        xayah::smoke::ExecutionContext context = model.make_context(xayah::smoke::ExecutionMode::differentiable);
         xayah::smoke::State state = model.make_state(context);
         xayah::smoke::State positive_state = model.make_state(context);
         xayah::smoke::State negative_state = model.make_state(context);
@@ -501,7 +501,7 @@ namespace {
     void check_source() {
         xayah::smoke::Configuration configuration = small_configuration();
         xayah::smoke::Model model(configuration);
-        xayah::smoke::ExecutionContext context = model.make_context();
+        xayah::smoke::ExecutionContext context = model.make_context(xayah::smoke::ExecutionMode::differentiable);
         xayah::smoke::State state = model.make_state(context);
         xayah::smoke::State positive_state = model.make_state(context);
         xayah::smoke::State negative_state = model.make_state(context);
@@ -543,7 +543,7 @@ namespace {
         xayah::smoke::Configuration configuration = small_configuration();
         configuration.vorticity_confinement_enabled = false;
         xayah::smoke::Model model(configuration);
-        xayah::smoke::ExecutionContext context = model.make_context();
+        xayah::smoke::ExecutionContext context = model.make_context(xayah::smoke::ExecutionMode::differentiable);
         xayah::smoke::State state = model.make_state(context);
         xayah::smoke::State positive_state = model.make_state(context);
         xayah::smoke::State negative_state = model.make_state(context);

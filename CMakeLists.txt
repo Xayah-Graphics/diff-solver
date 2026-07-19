@@ -203,6 +203,35 @@ endif ()
 
 
 # ============================================================================
+# Smoke Forward Example
+# ============================================================================
+set(SMOKE_FORWARD_DIR examples/smoke/forward)
+
+add_library(xayah-example-smoke-forward-cuda STATIC ${SMOKE_FORWARD_DIR}/simulation.cu)
+target_include_directories(xayah-example-smoke-forward-cuda PRIVATE ${SMOKE_FORWARD_DIR})
+target_link_libraries(xayah-example-smoke-forward-cuda PRIVATE CUDA::cudart)
+
+add_library(xayah-example-smoke-forward)
+target_sources(
+        xayah-example-smoke-forward
+        PRIVATE
+        ${SMOKE_FORWARD_DIR}/simulation.cpp
+        PUBLIC
+        FILE_SET cxx_modules TYPE CXX_MODULES FILES
+        ${SMOKE_FORWARD_DIR}/simulation.ixx
+)
+target_link_libraries(xayah-example-smoke-forward PUBLIC xayah-smoke PRIVATE xayah-example-smoke-forward-cuda CUDA::cudart)
+set_property(TARGET xayah-example-smoke-forward PROPERTY CXX_MODULE_STD ON)
+
+add_executable(diff-smoke-forward ${SMOKE_FORWARD_DIR}/main.cpp)
+target_link_libraries(diff-smoke-forward PRIVATE xayah-example-smoke-forward CUDA::cudart)
+set_property(TARGET diff-smoke-forward PROPERTY CXX_MODULE_STD ON)
+if (MSVC)
+    target_link_options(diff-smoke-forward PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
+endif ()
+
+
+# ============================================================================
 # Spectra Plugin Adapter
 # ============================================================================
 if (DIFF_SOLVER_BUILD_SPECTRA_PLUGINS)
@@ -249,5 +278,13 @@ if (DIFF_SOLVER_BUILD_SPECTRA_PLUGINS)
     set_property(TARGET smoke-wind-trajectory-optimization-plugin PROPERTY CXX_MODULE_STD ON)
     if (MSVC)
         target_link_options(smoke-wind-trajectory-optimization-plugin PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
+    endif ()
+
+    # Smoke Forward Example Plugin
+    add_library(smoke-forward-plugin SHARED ${SMOKE_FORWARD_DIR}/project.cpp)
+    target_link_libraries(smoke-forward-plugin PRIVATE xayah-spectra-plugin xayah-example-smoke-forward CUDA::cudart)
+    set_property(TARGET smoke-forward-plugin PROPERTY CXX_MODULE_STD ON)
+    if (MSVC)
+        target_link_options(smoke-forward-plugin PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
     endif ()
 endif ()
