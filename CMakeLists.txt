@@ -210,21 +210,49 @@ endif ()
 
 
 # ============================================================================
-# Spectra Plugin Adapter
+# Spectra Plugin Support
 # ============================================================================
 if (DIFF_SOLVER_BUILD_SPECTRA_PLUGINS)
-    add_library(xayah-spectra-plugin)
+    find_package(SpectraPluginSDK 21 CONFIG REQUIRED)
+
+    add_library(xayah-spectra-plugin-support STATIC examples/common/spectra/support.cpp)
     target_sources(
-            xayah-spectra-plugin
+            xayah-spectra-plugin-support
             PUBLIC
             FILE_SET cxx_modules TYPE CXX_MODULES FILES
-            plugin.ixx
+            examples/common/spectra/support.ixx
     )
-    set_property(TARGET xayah-spectra-plugin PROPERTY CXX_MODULE_STD ON)
+    target_link_libraries(xayah-spectra-plugin-support PUBLIC SpectraPluginSDK::contract PRIVATE CUDA::cudart)
+    set_property(TARGET xayah-spectra-plugin-support PROPERTY CXX_MODULE_STD ON)
+
+    function (configure_spectra_plugin target provider_id scene_name source_directory)
+        set(bundle_directory "${CMAKE_BINARY_DIR}/spectra/${scene_name}")
+        file(GLOB_RECURSE bundle_sources CONFIGURE_DEPENDS "${source_directory}/spectra/*")
+        set_target_properties(
+                ${target}
+                PROPERTIES
+                PREFIX ""
+                OUTPUT_NAME "${provider_id}.spectra-plugin"
+                LIBRARY_OUTPUT_DIRECTORY "${bundle_directory}"
+                RUNTIME_OUTPUT_DIRECTORY "${bundle_directory}"
+        )
+        target_link_libraries(${target} PRIVATE xayah-spectra-plugin-support CUDA::cudart)
+        set_property(TARGET ${target} PROPERTY CXX_MODULE_STD ON)
+        add_custom_target(
+                ${target}-bundle
+                COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different "${source_directory}/spectra" "${bundle_directory}"
+                SOURCES ${bundle_sources}
+                VERBATIM
+        )
+        add_dependencies(${target} ${target}-bundle)
+        if (MSVC)
+            target_link_options(${target} PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
+        endif ()
+    endfunction ()
 
     # Cloth Stretch-Stiffness Inverse Example Plugin
     add_library(
-            cloth-stretch-stiffness-inverse-plugin SHARED
+            cloth-stretch-stiffness-inverse-plugin MODULE
             examples/cloth/stretch_stiffness_inverse/project.cpp
             examples/cloth/stretch_stiffness_inverse/project.cu
             examples/cloth/stretch_stiffness_inverse/task.cpp
@@ -237,15 +265,12 @@ if (DIFF_SOLVER_BUILD_SPECTRA_PLUGINS)
             examples/cloth/stretch_stiffness_inverse/task.ixx
     )
     target_include_directories(cloth-stretch-stiffness-inverse-plugin PRIVATE examples/cloth/stretch_stiffness_inverse)
-    target_link_libraries(cloth-stretch-stiffness-inverse-plugin PRIVATE xayah-spectra-plugin xayah-cloth CUDA::cudart)
-    set_property(TARGET cloth-stretch-stiffness-inverse-plugin PROPERTY CXX_MODULE_STD ON)
-    if (MSVC)
-        target_link_options(cloth-stretch-stiffness-inverse-plugin PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
-    endif ()
+    target_link_libraries(cloth-stretch-stiffness-inverse-plugin PRIVATE xayah-cloth)
+    configure_spectra_plugin(cloth-stretch-stiffness-inverse-plugin "xayah.examples.cloth.stretch_stiffness_inverse" "cloth-stretch-stiffness-inverse" "${CMAKE_CURRENT_SOURCE_DIR}/examples/cloth/stretch_stiffness_inverse")
 
     # Cloth Wind-Trajectory Optimization Example Plugin
     add_library(
-            cloth-wind-trajectory-optimization-plugin SHARED
+            cloth-wind-trajectory-optimization-plugin MODULE
             examples/cloth/wind_trajectory_optimization/project.cpp
             examples/cloth/wind_trajectory_optimization/project.cu
             examples/cloth/wind_trajectory_optimization/task.cpp
@@ -258,15 +283,12 @@ if (DIFF_SOLVER_BUILD_SPECTRA_PLUGINS)
             examples/cloth/wind_trajectory_optimization/task.ixx
     )
     target_include_directories(cloth-wind-trajectory-optimization-plugin PRIVATE examples/cloth/wind_trajectory_optimization)
-    target_link_libraries(cloth-wind-trajectory-optimization-plugin PRIVATE xayah-spectra-plugin xayah-cloth CUDA::cudart)
-    set_property(TARGET cloth-wind-trajectory-optimization-plugin PROPERTY CXX_MODULE_STD ON)
-    if (MSVC)
-        target_link_options(cloth-wind-trajectory-optimization-plugin PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
-    endif ()
+    target_link_libraries(cloth-wind-trajectory-optimization-plugin PRIVATE xayah-cloth)
+    configure_spectra_plugin(cloth-wind-trajectory-optimization-plugin "xayah.examples.cloth.wind_trajectory_optimization" "cloth-wind-trajectory-optimization" "${CMAKE_CURRENT_SOURCE_DIR}/examples/cloth/wind_trajectory_optimization")
 
     # Cloth Forward Example Plugin
     add_library(
-            cloth-forward-plugin SHARED
+            cloth-forward-plugin MODULE
             examples/cloth/forward/project.cpp
             examples/cloth/forward/project.cu
             examples/cloth/forward/simulation.cpp
@@ -279,15 +301,12 @@ if (DIFF_SOLVER_BUILD_SPECTRA_PLUGINS)
             examples/cloth/forward/simulation.ixx
     )
     target_include_directories(cloth-forward-plugin PRIVATE examples/cloth/forward)
-    target_link_libraries(cloth-forward-plugin PRIVATE xayah-spectra-plugin xayah-cloth CUDA::cudart)
-    set_property(TARGET cloth-forward-plugin PROPERTY CXX_MODULE_STD ON)
-    if (MSVC)
-        target_link_options(cloth-forward-plugin PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
-    endif ()
+    target_link_libraries(cloth-forward-plugin PRIVATE xayah-cloth)
+    configure_spectra_plugin(cloth-forward-plugin "xayah.examples.cloth.forward" "cloth-forward" "${CMAKE_CURRENT_SOURCE_DIR}/examples/cloth/forward")
 
     # Smoke Wind-Trajectory Optimization Example Plugin
     add_library(
-            smoke-wind-trajectory-optimization-plugin SHARED
+            smoke-wind-trajectory-optimization-plugin MODULE
             examples/smoke/wind_trajectory_optimization/project.cpp
             examples/smoke/wind_trajectory_optimization/project.cu
             examples/smoke/wind_trajectory_optimization/task.cpp
@@ -300,16 +319,14 @@ if (DIFF_SOLVER_BUILD_SPECTRA_PLUGINS)
             examples/smoke/wind_trajectory_optimization/task.ixx
     )
     target_include_directories(smoke-wind-trajectory-optimization-plugin PRIVATE examples/smoke/wind_trajectory_optimization)
-    target_link_libraries(smoke-wind-trajectory-optimization-plugin PRIVATE xayah-spectra-plugin xayah-smoke CUDA::cudart)
-    set_property(TARGET smoke-wind-trajectory-optimization-plugin PROPERTY CXX_MODULE_STD ON)
-    if (MSVC)
-        target_link_options(smoke-wind-trajectory-optimization-plugin PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
-    endif ()
+    target_link_libraries(smoke-wind-trajectory-optimization-plugin PRIVATE xayah-smoke)
+    configure_spectra_plugin(smoke-wind-trajectory-optimization-plugin "xayah.examples.smoke.wind_trajectory_optimization" "smoke-wind-trajectory-optimization" "${CMAKE_CURRENT_SOURCE_DIR}/examples/smoke/wind_trajectory_optimization")
 
     # Smoke Forward Example Plugin
     add_library(
-            smoke-forward-plugin SHARED
+            smoke-forward-plugin MODULE
             examples/smoke/forward/project.cpp
+            examples/smoke/forward/project.cu
             examples/smoke/forward/simulation.cpp
             examples/smoke/forward/simulation.cu
     )
@@ -320,9 +337,6 @@ if (DIFF_SOLVER_BUILD_SPECTRA_PLUGINS)
             examples/smoke/forward/simulation.ixx
     )
     target_include_directories(smoke-forward-plugin PRIVATE examples/smoke/forward)
-    target_link_libraries(smoke-forward-plugin PRIVATE xayah-spectra-plugin xayah-smoke CUDA::cudart)
-    set_property(TARGET smoke-forward-plugin PROPERTY CXX_MODULE_STD ON)
-    if (MSVC)
-        target_link_options(smoke-forward-plugin PRIVATE "/WHOLEARCHIVE:${CMAKE_CURRENT_BINARY_DIR}/@cmake_cxx_std.lib")
-    endif ()
+    target_link_libraries(smoke-forward-plugin PRIVATE xayah-smoke)
+    configure_spectra_plugin(smoke-forward-plugin "xayah.examples.smoke.forward" "smoke-forward" "${CMAKE_CURRENT_SOURCE_DIR}/examples/smoke/forward")
 endif ()
