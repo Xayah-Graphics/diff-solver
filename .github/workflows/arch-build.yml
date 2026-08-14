@@ -28,23 +28,6 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Check out Spectra SDK
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          repository: Xayah-Graphics/spectra
-          path: spectra-source
-          persist-credentials: false
-
-      - name: Build and install Spectra SDK
-        run: |
-          . /etc/profile
-          cmake -S spectra-source/sdk -B spectra-sdk-cmake-build-release -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_CXX_COMPILER="$NVCC_CCBIN" \
-            -DCMAKE_INSTALL_PREFIX=/opt/spectra-sdk
-          cmake --build spectra-sdk-cmake-build-release --parallel 30
-          cmake --install spectra-sdk-cmake-build-release --component SDK
-
       - name: Configure diff-solver
         run: |
           . /etc/profile
@@ -52,9 +35,8 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_CXX_COMPILER="$NVCC_CCBIN" \
             -DCMAKE_CUDA_HOST_COMPILER="$NVCC_CCBIN" \
-            -DCMAKE_PREFIX_PATH=/opt/spectra-sdk \
             -DDIFF_SOLVER_BUILD_EXAMPLES=ON \
-            -DDIFF_SOLVER_BUILD_SPECTRA_PROVIDERS=ON
+            -DDIFF_SOLVER_BUILD_SPECTRA_PROVIDERS=OFF
 
       - name: Build diff-solver
         run: cmake --build cmake-build-release --parallel 30

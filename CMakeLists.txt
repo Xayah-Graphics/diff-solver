@@ -5,6 +5,10 @@ project(diff-solver VERSION 1.0.0 LANGUAGES CXX CUDA)
 option(DIFF_SOLVER_BUILD_EXAMPLES "Build the examples" OFF)
 option(DIFF_SOLVER_BUILD_SPECTRA_PROVIDERS "Build the Spectra Providers" OFF)
 
+if (DIFF_SOLVER_BUILD_SPECTRA_PROVIDERS AND NOT WIN32)
+    message(FATAL_ERROR "Spectra visualization providers are supported only on Windows")
+endif ()
+
 # ============================================================================
 # Project Configuration
 # ============================================================================

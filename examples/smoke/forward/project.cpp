@@ -10,6 +10,7 @@ import spectra.sdk;
 import spectra.sdk.cuda;
 import std;
 import xayah.examples.smoke.forward;
+import xayah.smoke.data;
 
 namespace {
     constexpr xayah::smoke::examples::forward::ForwardSimulationOptions simulation_options{.host_metrics = true};

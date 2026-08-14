@@ -3,22 +3,12 @@
 
 FROM archlinux:latest AS build
 
-SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
+SHELL ["/bin/bash", "-eo", "pipefail", "-c"]
 
 RUN --mount=type=cache,target=/var/cache/pacman/pkg,sharing=locked \
     pacman -Syu --noconfirm --needed base-devel cmake cuda ninja
 
 WORKDIR /src
-COPY --link spectra-source/sdk spectra-sdk
-
-RUN . /etc/profile \
-    && cmake -S spectra-sdk -B spectra-sdk-cmake-build-release -G Ninja \
-        -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_CXX_COMPILER="${NVCC_CCBIN}" \
-        -DCMAKE_INSTALL_PREFIX=/opt/spectra-sdk \
-    && cmake --build spectra-sdk-cmake-build-release --parallel 30 \
-    && cmake --install spectra-sdk-cmake-build-release --component SDK
-
 COPY --link CMakeLists.txt .
 COPY --link solvers solvers
 COPY --link examples examples
@@ -28,9 +18,8 @@ RUN . /etc/profile \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_CXX_COMPILER="${NVCC_CCBIN}" \
         -DCMAKE_CUDA_HOST_COMPILER="${NVCC_CCBIN}" \
-        -DCMAKE_PREFIX_PATH=/opt/spectra-sdk \
         -DDIFF_SOLVER_BUILD_EXAMPLES=ON \
-        -DDIFF_SOLVER_BUILD_SPECTRA_PROVIDERS=ON \
+        -DDIFF_SOLVER_BUILD_SPECTRA_PROVIDERS=OFF \
     && cmake --build cmake-build-release --parallel 30
 
 
@@ -43,7 +32,6 @@ RUN --mount=type=cache,target=/var/cache/pacman/pkg,sharing=locked \
 
 COPY --from=build --chown=10001:10001 --link /src/cmake-build-release/examples/cloth/forward/diff-cloth-forward /opt/diff-solver/bin/
 COPY --from=build --chown=10001:10001 --link /src/cmake-build-release/examples/smoke/forward/diff-smoke-forward /opt/diff-solver/bin/
-COPY --from=build --chown=10001:10001 --link /src/cmake-build-release/spectra/ /opt/diff-solver/spectra/
 
 USER 10001:10001
 ENV HOME=/opt/diff-solver
