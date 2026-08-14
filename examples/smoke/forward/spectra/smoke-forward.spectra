@@ -1,28 +1,14 @@
-spectra 34 "Smoke Forward" {
+spectra 35 "Smoke Forward" {
     active camera=1 film=1 sampler=1
-    geometries {
-        box 1 "Smoke Bounds" {
-            bounds 0 0 0 1 1.5 1
-        }
-    }
     volumes {
         grid 1 "Double-Jet Thermal Smoke" {
-            bounds 0 0 0 1 1.5 1
-            resolution 128 192 128
-            field "density" "Density" kind="float"
-            field "temperature" "Temperature" kind="float" unit="K"
-            field "velocity" "Velocity" kind="mac-float3" unit="m/s"
-        }
-    }
-    materials {
-        interface 1 "Volume Boundary"
-    }
-    media {
-        volume 1 "Double-Jet Smoke Medium" volume=1 density-field="density" temperature-field="temperature" {
-            sigma-a rgb-unbounded 0.22 0.25 0.30
-            sigma-s rgb-unbounded 0.96 0.90 0.80
-            emission rgb-illuminant 0 0 0
-            anisotropy 0.28
+            domain 0 0 0 1 1.5 1
+            rendering density-field="density" temperature-field="temperature" {
+                sigma-a rgb-unbounded 0.22 0.25 0.30
+                sigma-s rgb-unbounded 0.96 0.90 0.80
+                emission rgb-illuminant 0 0 0
+                anisotropy 0.28
+            }
         }
     }
     lights {
@@ -60,16 +46,6 @@ spectra 34 "Smoke Forward" {
     }
     samplers {
         sampler 1 "Main Sampler" kind="pmj02bn" samples=256 seed=20260809
-    }
-    prototypes {
-        prototype 1 "Smoke Volume Prototype" {
-            primitive geometry=1 material=1 {
-                media inside=1
-            }
-        }
-    }
-    instances {
-        instance 1 "Smoke Volume" prototype=1
     }
     dynamics seed=20260809 {
         clock step-seconds=0.004166666666666667

@@ -1,4 +1,4 @@
-spectra 34 "Flag in Wind" {
+spectra 35 "Flag in Wind" {
     active camera=1 film=1 sampler=1
     geometries {
         triangle-mesh 1 "Dynamic Flag Surface" source="assets/flag.ply"
