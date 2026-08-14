@@ -34,7 +34,7 @@ namespace xayah::smoke::examples::forward {
             return configuration;
         }
 
-        simulation_cuda::Grid grid(const Configuration& configuration) {
+        cuda_kernels::Grid grid(const Configuration& configuration) {
             return {
                 .nx        = configuration.resolution[0],
                 .ny        = configuration.resolution[1],
@@ -44,21 +44,21 @@ namespace xayah::smoke::examples::forward {
             };
         }
 
-        simulation_cuda::Vector vector(const Vector3 value) {
+        cuda_kernels::Vector vector(const Vector3 value) {
             return {.x = value.x, .y = value.y, .z = value.z};
         }
 
-        simulation_cuda::VectorField vector(CenteredVectorField& field) {
+        cuda_kernels::CenteredVectorView vector(CenteredVectorField& field) {
             return {.x = field.x.values.data, .y = field.y.values.data, .z = field.z.values.data};
         }
 
-        simulation_cuda::ConstStaggeredVectorField vector(const StaggeredVectorField& field) {
+        cuda_kernels::ConstStaggeredVectorView vector(const StaggeredVectorField& field) {
             return {.x = field.x.data, .y = field.y.data, .z = field.z.data};
         }
 
     } // namespace
 
-    ForwardSimulation::ForwardSimulation(ForwardSimulationOptions next_options) : options(next_options), model(make_configuration(options)), context(model.allocate_context(ExecutionMode::forward)), current_state(model.allocate_state(context)), metrics{}, next_state_(model.allocate_state(context)), control_(model.allocate_control(context)), parameters_(model.allocate_parameters(context)), step_cache_(model.allocate_step_cache(context)), device_metrics_(static_cast<double*>(context.resource->allocate(6u * sizeof(double)))) {
+    ForwardSimulation::ForwardSimulation(ForwardSimulationOptions next_options) : options(next_options), model(make_configuration(options)), context(model.allocate_context(ExecutionMode::forward)), current_state(model.allocate_state(context)), metrics{}, device_metrics(static_cast<double*>(context.resource->allocate(6u * sizeof(double)))), next_state_(model.allocate_state(context)), control_(model.allocate_control(context)), parameters_(model.allocate_parameters(context)), step_cache_(model.allocate_step_cache(context)) {
         context.resource->copy_from_host(parameters_.ambient_temperature.data, &options.ambient_temperature, sizeof(float));
         context.resource->copy_from_host(parameters_.density_buoyancy.data, &options.density_buoyancy, sizeof(float));
         context.resource->copy_from_host(parameters_.temperature_buoyancy.data, &options.temperature_buoyancy, sizeof(float));
@@ -68,7 +68,7 @@ namespace xayah::smoke::examples::forward {
     }
 
     ForwardSimulation::~ForwardSimulation() noexcept {
-        context.resource->release(device_metrics_);
+        context.resource->release(device_metrics);
     }
 
     void ForwardSimulation::reset() {
@@ -82,26 +82,30 @@ namespace xayah::smoke::examples::forward {
         context.resource->zero(next_state_.velocity.x.data, next_state_.velocity.x.size * sizeof(float));
         context.resource->zero(next_state_.velocity.y.data, next_state_.velocity.y.size * sizeof(float));
         context.resource->zero(next_state_.velocity.z.data, next_state_.velocity.z.size * sizeof(float));
+        context.resource->zero(device_metrics, 6u * sizeof(double));
         context.resource->synchronize();
         metrics = {};
     }
 
     void ForwardSimulation::step() {
-        const auto begin          = std::chrono::steady_clock::now();
+        const std::chrono::steady_clock::time_point begin = options.host_metrics ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
         const cudaStream_t stream = static_cast<cudaStream_t>(context.resource->native_stream);
         simulation_cuda::launch_write_control(stream, grid(model.configuration), metrics.step, options.pulse_period, vector(options.left_source_center), vector(options.right_source_center), options.source_radius, options.density_source_rate, options.temperature_source_rate, vector(options.left_acceleration), vector(options.right_acceleration), control_.density_source.values.data, control_.temperature_source.values.data, vector(control_.external_acceleration));
         model.forward_step(current_state, control_, parameters_, next_state_, step_cache_, context);
-        context.resource->zero(device_metrics_, 6u * sizeof(double));
-        simulation_cuda::launch_reduce_metrics(stream, grid(model.configuration), context.domain.cell_mask.data, next_state_.density.values.data, next_state_.temperature.values.data, vector(step_cache_.advected_velocity), vector(next_state_.velocity), device_metrics_);
+        context.resource->zero(device_metrics, 6u * sizeof(double));
+        simulation_cuda::launch_reduce_metrics(stream, grid(model.configuration), context.domain.cell_mask.data, next_state_.density.values.data, next_state_.temperature.values.data, vector(step_cache_.advected_velocity), vector(next_state_.velocity), device_metrics);
         std::array<double, 6u> values{};
-        context.resource->copy_to_host(values.data(), device_metrics_, values.size() * sizeof(double));
-        context.resource->synchronize();
+        if (options.host_metrics) {
+            context.resource->copy_to_host(values.data(), device_metrics, values.size() * sizeof(double));
+            context.resource->synchronize();
+        }
         std::swap(current_state, next_state_);
 
-        const double step_milliseconds = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - begin).count();
-        const double previous_steps    = static_cast<double>(metrics.step);
         ++metrics.step;
-        metrics.physical_time                  = static_cast<double>(metrics.step) * options.time_step;
+        metrics.physical_time = static_cast<double>(metrics.step) * options.time_step;
+        if (!options.host_metrics) return;
+        const double step_milliseconds            = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - begin).count();
+        const double previous_steps               = static_cast<double>(metrics.step - 1u);
         metrics.density_mass                   = values[0] * static_cast<double>(options.cell_size) * options.cell_size * options.cell_size;
         metrics.density_maximum                = values[1];
         metrics.temperature_maximum            = values[2];

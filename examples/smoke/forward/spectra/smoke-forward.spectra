@@ -1,0 +1,81 @@
+spectra 34 "Smoke Forward" {
+    active camera=1 film=1 sampler=1
+    geometries {
+        box 1 "Smoke Bounds" {
+            bounds 0 0 0 1 1.5 1
+        }
+    }
+    volumes {
+        grid 1 "Double-Jet Thermal Smoke" {
+            bounds 0 0 0 1 1.5 1
+            resolution 128 192 128
+            field "density" "Density" kind="float"
+            field "temperature" "Temperature" kind="float" unit="K"
+            field "velocity" "Velocity" kind="mac-float3" unit="m/s"
+        }
+    }
+    materials {
+        interface 1 "Volume Boundary"
+    }
+    media {
+        volume 1 "Double-Jet Smoke Medium" volume=1 density-field="density" temperature-field="temperature" {
+            sigma-a rgb-unbounded 0.22 0.25 0.30
+            sigma-s rgb-unbounded 0.96 0.90 0.80
+            emission rgb-illuminant 0 0 0
+            anisotropy 0.28
+        }
+    }
+    lights {
+        point 1 "Key Light" {
+            intensity rgb-illuminant 42 45 50
+            transform {
+                row 1 0 0 2.5
+                row 0 1 0 3
+                row 0 0 1 2.5
+                row 0 0 0 1
+            }
+        }
+        infinite 2 "Environment" {
+            radiance rgb-illuminant 0.025 0.03 0.04
+        }
+    }
+    cameras {
+        perspective 1 "Overview" {
+            transform {
+                row 0.8804711 -0.07914866 0.4674464 1.9
+                row 0 0.9859662 0.16694514 1.2
+                row -0.4740998 -0.14699037 0.8681147 3.1
+                row 0 0 0 1
+            }
+            vertical-fov 35
+            near-plane 0.01
+            far-plane 20
+        }
+    }
+    films {
+        film 1 "Main Film" gbuffer=#true {
+            resolution 1920 1080
+            filter gaussian radius-x=1.5 radius-y=1.5
+        }
+    }
+    samplers {
+        sampler 1 "Main Sampler" kind="pmj02bn" samples=256 seed=20260809
+    }
+    prototypes {
+        prototype 1 "Smoke Volume Prototype" {
+            primitive geometry=1 material=1 {
+                media inside=1
+            }
+        }
+    }
+    instances {
+        instance 1 "Smoke Volume" prototype=1
+    }
+    dynamics seed=20260809 {
+        clock step-seconds=0.004166666666666667
+        system "smoke-forward" "Smoke Forward" provider="xayah.examples.smoke.forward" {
+            scene-bind "density" 1
+            visualize "emitters" "Emitter Accelerations" kind="vectors" depth="tested"
+        }
+    }
+}

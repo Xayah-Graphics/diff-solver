@@ -3,20 +3,9 @@
 
 #include <cstdint>
 
+#include "cuda_types.h"
+
 namespace xayah::cloth::cuda_kernel {
-
-    struct Field {
-        float* x;
-        float* y;
-        float* z;
-    };
-
-    struct ConstField {
-        const float* x;
-        const float* y;
-        const float* z;
-    };
-
     struct SpringTopology {
         const std::uint32_t* first;
         const std::uint32_t* second;

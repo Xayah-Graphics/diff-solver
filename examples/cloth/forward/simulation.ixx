@@ -12,17 +12,20 @@ export namespace xayah::cloth::examples::forward {
         float width{3.0F};
         float height{2.0F};
         float time_step{1.0F / 240.0F};
-        float mass{0.05F};
-        float stretch_stiffness{400.0F};
-        float stretch_damping{1.0F};
-        float bending_stiffness{5.0F};
-        float bending_damping{0.1F};
-        float gravity_y{0.0F};
-        float load_ramp_duration{0.5F};
-        float load_period{1.2F};
-        float load_base_acceleration{6.0F};
-        float load_primary_acceleration{8.0F};
-        float load_secondary_acceleration{2.0F};
+        std::uint32_t integration_substeps{8u};
+        float mass{0.0125F};
+        float stretch_stiffness{600.0F};
+        float stretch_damping{1.2F};
+        float bending_stiffness{8.0F};
+        float bending_damping{0.4F};
+        float gravity_y{-0.1F};
+        float wind_speed{6.0F};
+        float gust_strength{0.35F};
+        float gust_frequency{0.9F};
+        float air_density{1.225F};
+        float drag_coefficient{1.0F};
+        float skin_drag_coefficient{0.10F};
+        float wind_ramp_duration{0.5F};
     };
 
     struct ForwardSimulationMetrics {
@@ -34,7 +37,8 @@ export namespace xayah::cloth::examples::forward {
         double maximum_absolute_bending_strain{};
         Vector3 free_edge_mean_position{};
         Vector3 free_edge_mean_displacement{};
-        std::array<double, 3u> sampled_load_accelerations{};
+        std::array<Vector3, 3u> sampled_wind_velocities{};
+        double aerodynamic_force{};
         double step_milliseconds{};
         double average_step_milliseconds{};
     };
@@ -44,6 +48,7 @@ export namespace xayah::cloth::examples::forward {
         Model model;
         ExecutionContext context;
         State current_state;
+        Parameters parameters;
         ForwardSimulationMetrics metrics;
 
         explicit ForwardSimulation(ForwardSimulationOptions options = {});
@@ -60,7 +65,6 @@ export namespace xayah::cloth::examples::forward {
     private:
         State next_state_;
         Control control_;
-        Parameters parameters_;
         StepCache step_cache_;
         double* device_metrics_;
     };

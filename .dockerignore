@@ -1,0 +1,9 @@
+**
+!CMakeLists.txt
+!examples/
+!examples/**
+!solvers/
+!solvers/**
+!spectra-source/
+!spectra-source/sdk/
+!spectra-source/sdk/**

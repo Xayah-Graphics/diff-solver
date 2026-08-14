@@ -15,7 +15,7 @@ namespace xayah::smoke {
     namespace {
 
         cuda_kernels::Grid grid(const Configuration& configuration) {
-            return {.nx = static_cast<int>(configuration.resolution[0]), .ny = static_cast<int>(configuration.resolution[1]), .nz = static_cast<int>(configuration.resolution[2]), .cell_size = configuration.cell_size, .time_step = configuration.time_step};
+            return {.nx = configuration.resolution[0], .ny = configuration.resolution[1], .nz = configuration.resolution[2], .cell_size = configuration.cell_size, .time_step = configuration.time_step};
         }
 
         cuda_kernels::ConstScalarView scalar(const ScalarField& field) {

@@ -1,376 +1,186 @@
-#if defined(_WIN32)
-#define XAYAH_CLOTH_FORWARD_PLUGIN_EXPORT __declspec(dllexport)
-#else
-#define XAYAH_CLOTH_FORWARD_PLUGIN_EXPORT __attribute__((visibility("default")))
-#endif
-
-#if defined(_WIN32)
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
-#include <windows.h>
-#else
-#include <unistd.h>
-#endif
+module;
 
 #include "project.h"
+
 #include <cuda_runtime_api.h>
 
+export module xayah.examples.cloth.forward.provider;
+
+import spectra.sdk;
+import spectra.sdk.cuda;
 import std;
 import xayah.cloth.data;
 import xayah.examples.cloth.forward;
-import xayah.spectra.plugin;
 
-namespace xayah::cloth::examples::forward::project {
+namespace {
+    constexpr xayah::cloth::examples::forward::ForwardSimulationOptions simulation_options{};
+    constexpr std::uint32_t vertex_count        = simulation_options.rows * simulation_options.columns;
+    constexpr std::uint32_t stretch_count       = simulation_options.rows * (simulation_options.columns - 1u) + (simulation_options.rows - 1u) * simulation_options.columns + (simulation_options.rows - 1u) * (simulation_options.columns - 1u);
+    constexpr std::uint32_t bending_count       = (simulation_options.rows - 2u) * (simulation_options.columns - 1u) + (simulation_options.rows - 1u) * (simulation_options.columns - 2u) + (simulation_options.rows - 1u) * (simulation_options.columns - 1u);
+    constexpr std::uint32_t diagnostic_capacity = stretch_count + bending_count;
+    constexpr std::uint32_t wind_capacity       = 3u;
+}
 
-    namespace plugin = spectra::plugin;
-
-    namespace {
-
-        constexpr std::uint64_t segment_bytes = 48u;
-
-        struct ExternalBuffer {
-            ExternalBuffer() = default;
-
-            ~ExternalBuffer() noexcept {
-                for (void* const mapped_buffer : mapped_buffers)
-                    if (mapped_buffer != nullptr && cudaFree(mapped_buffer) != cudaSuccess) std::terminate();
-                for (const cudaExternalMemory_t external_memory : external_memories_)
-                    if (external_memory != nullptr && cudaDestroyExternalMemory(external_memory) != cudaSuccess) std::terminate();
-                if (allocation.resource_id != 0u) {
-                    try {
-                        host_services_->release_gpu_buffer(allocation.resource_id);
-                    } catch (...) {
-                        std::terminate();
-                    }
-                }
-            }
-
-            ExternalBuffer(const ExternalBuffer&)            = delete;
-            ExternalBuffer(ExternalBuffer&&)                 = delete;
-            ExternalBuffer& operator=(const ExternalBuffer&) = delete;
-            ExternalBuffer& operator=(ExternalBuffer&&)      = delete;
-
-            void create(std::shared_ptr<plugin::HostServices> host_services, const std::uint32_t kind, const std::uint64_t byte_size) {
-                plugin::GpuBufferAllocation next_allocation = host_services->request_gpu_buffer(kind, byte_size);
-                std::vector<cudaExternalMemory_t> external_memories{};
-                std::vector<void*> next_mapped_buffers{};
-                external_memories.reserve(next_allocation.slots.size());
-                next_mapped_buffers.reserve(next_allocation.slots.size());
-                try {
-                    for (plugin::GpuBufferSlotAllocation& slot : next_allocation.slots) {
-                        cudaExternalMemoryHandleDesc memory_descriptor{};
-                        memory_descriptor.size = next_allocation.byte_size;
-#if defined(_WIN32)
-                        memory_descriptor.type                = cudaExternalMemoryHandleTypeOpaqueWin32;
-                        memory_descriptor.handle.win32.handle = reinterpret_cast<void*>(slot.handle);
-#else
-                        memory_descriptor.type      = cudaExternalMemoryHandleTypeOpaqueFd;
-                        memory_descriptor.handle.fd = static_cast<int>(slot.handle);
-#endif
-                        cudaExternalMemory_t external_memory{};
-                        const cudaError_t import_status = cudaImportExternalMemory(&external_memory, &memory_descriptor);
-#if defined(_WIN32)
-                        close_imported_handle(slot);
-#else
-                        if (import_status == cudaSuccess)
-                            slot.handle = 0u;
-                        else
-                            close_imported_handle(slot);
-#endif
-                        if (import_status != cudaSuccess) throw std::runtime_error(std::format("cudaImportExternalMemory failed: {}", cudaGetErrorString(import_status)));
-                        cudaExternalMemoryBufferDesc buffer_descriptor{};
-                        buffer_descriptor.size = next_allocation.byte_size;
-                        void* mapped_buffer{};
-                        if (const cudaError_t status = cudaExternalMemoryGetMappedBuffer(&mapped_buffer, external_memory, &buffer_descriptor); status != cudaSuccess) {
-                            static_cast<void>(cudaDestroyExternalMemory(external_memory));
-                            throw std::runtime_error(std::format("cudaExternalMemoryGetMappedBuffer failed: {}", cudaGetErrorString(status)));
-                        }
-                        external_memories.push_back(external_memory);
-                        next_mapped_buffers.push_back(mapped_buffer);
-                    }
-                } catch (...) {
-                    for (plugin::GpuBufferSlotAllocation& slot : next_allocation.slots)
-                        if (slot.handle != 0u) close_imported_handle(slot);
-                    for (void* const mapped_buffer : next_mapped_buffers)
-                        if (mapped_buffer != nullptr) static_cast<void>(cudaFree(mapped_buffer));
-                    for (const cudaExternalMemory_t external_memory : external_memories)
-                        if (external_memory != nullptr) static_cast<void>(cudaDestroyExternalMemory(external_memory));
-                    host_services->release_gpu_buffer(next_allocation.resource_id);
-                    throw;
-                }
-                host_services_     = std::move(host_services);
-                allocation         = std::move(next_allocation);
-                external_memories_ = std::move(external_memories);
-                mapped_buffers     = std::move(next_mapped_buffers);
-                slot_revisions.assign(mapped_buffers.size(), 0u);
-            }
-
-            plugin::GpuBufferAllocation allocation{};
-            std::vector<void*> mapped_buffers{};
-            std::vector<std::uint64_t> slot_revisions{};
-
-        private:
-            static void close_imported_handle(plugin::GpuBufferSlotAllocation& slot) noexcept {
-#if defined(_WIN32)
-                if (slot.handle_kind == plugin::GpuResourceHandleKind::OpaqueWin32 && slot.handle != 0u && CloseHandle(reinterpret_cast<HANDLE>(slot.handle)) == 0) std::terminate();
-#else
-                if (slot.handle_kind == plugin::GpuResourceHandleKind::OpaqueFileDescriptor && slot.handle != 0u && close(static_cast<int>(slot.handle)) != 0) std::terminate();
-#endif
-                slot.handle = 0u;
-            }
-
-            std::shared_ptr<plugin::HostServices> host_services_{};
-            std::vector<cudaExternalMemory_t> external_memories_{};
-        };
-
-        plugin::Camera overview_camera() {
-            const std::array<float, 3u> position{4.35F, -0.15F, 5.80F};
-            const std::array<float, 3u> target{1.50F, -1.00F, 0.00F};
-            std::array<float, 3u> forward{target[0] - position[0], target[1] - position[1], target[2] - position[2]};
-            const float forward_length = std::sqrt(forward[0] * forward[0] + forward[1] * forward[1] + forward[2] * forward[2]);
-            for (float& component : forward) component /= forward_length;
-            std::array<float, 3u> right{-forward[2], 0.0F, forward[0]};
-            const float right_length = std::sqrt(right[0] * right[0] + right[2] * right[2]);
-            for (float& component : right) component /= right_length;
-            const std::array<float, 3u> down{
-                forward[1] * right[2] - forward[2] * right[1],
-                forward[2] * right[0] - forward[0] * right[2],
-                forward[0] * right[1] - forward[1] * right[0],
-            };
-            return {
-                .name                 = "Overview",
-                .position             = position,
-                .right                = right,
-                .down                 = down,
-                .forward              = forward,
-                .vertical_fov_degrees = 34.0F,
-                .near_plane           = 0.01F,
-                .far_plane            = 30.0F,
-            };
-        }
-
-    } // namespace
-
-    struct Project final {
-        std::uint64_t revision{1u};
-
-        explicit Project(std::shared_ptr<plugin::HostServices> host_services);
-        ~Project() noexcept;
-
-        Project(const Project&)            = delete;
-        Project(Project&&)                 = delete;
-        Project& operator=(const Project&) = delete;
-        Project& operator=(Project&&)      = delete;
-
-        [[nodiscard]] static const plugin::PluginDefinition<Project>& plugin();
-        [[nodiscard]] static Project open(plugin::OpenContext context);
-
-        void update(const plugin::UpdateInfo& update);
-        void write_document(plugin::SceneBuilder& scene) const;
-        void write_frame(plugin::SceneBuilder& scene, plugin::FrameInfo frame) const;
-        void write_controls(plugin::ControlBuilder& controls) const;
-
-    private:
-        void write_visualization(std::uint32_t frame_slot_index);
-
-        ForwardSimulation simulation_{};
-        float* stretch_rest_lengths_{};
-        float* bending_rest_lengths_{};
-        ExternalBuffer stretch_segments_{};
-        ExternalBuffer bending_segments_{};
-        ExternalBuffer load_segments_{};
-        std::uint64_t content_revision_{1u};
-        std::uint32_t current_frame_slot_{};
-        bool update_running_{};
-        bool reset_pending_{};
-        bool show_stretch_{true};
-        bool show_bending_{};
-        bool show_load_{true};
-        float stretch_width_{1.5F};
-        float bending_width_{1.0F};
-        float load_width_{3.0F};
-        float load_scale_{0.08F};
-        float strain_range_{0.10F};
+export namespace xayah::cloth::examples::forward::visualization {
+    struct Settings {
+        float mass{0.0125F};
+        float stretch_stiffness{600.0F};
+        float stretch_damping{1.2F};
+        float bending_stiffness{8.0F};
+        float bending_damping{0.4F};
+        float gravity_y{-0.1F};
+        float wind_speed{6.0F};
+        float gust_strength{0.35F};
+        float gust_frequency{0.9F};
+        float air_density{1.225F};
+        float drag_coefficient{1.0F};
+        float skin_drag_coefficient{0.10F};
+        float wind_ramp_duration{0.5F};
+        bool show_wind{true};
+        bool show_stretch{};
+        bool show_bending{};
+        float wind_width{3.0F};
+        float wind_scale{0.12F};
+        float stretch_width{1.25F};
+        float bending_width{1.0F};
+        float strain_range{0.10F};
     };
 
-    Project::Project(std::shared_ptr<plugin::HostServices> host_services) : stretch_rest_lengths_(static_cast<float*>(simulation_.context.resource->allocate(simulation_.model.topology.stretch_springs.size() * sizeof(float)))), bending_rest_lengths_(static_cast<float*>(simulation_.context.resource->allocate(simulation_.model.topology.bending_springs.size() * sizeof(float)))) {
-        std::vector<float> stretch_rest_lengths(simulation_.model.topology.stretch_springs.size());
-        for (std::size_t spring = 0u; spring < stretch_rest_lengths.size(); ++spring) stretch_rest_lengths[spring] = simulation_.model.topology.stretch_springs[spring].rest_length;
-        simulation_.context.resource->copy_from_host(stretch_rest_lengths_, stretch_rest_lengths.data(), stretch_rest_lengths.size() * sizeof(float));
-        std::vector<float> bending_rest_lengths(simulation_.model.topology.bending_springs.size());
-        for (std::size_t spring = 0u; spring < bending_rest_lengths.size(); ++spring) bending_rest_lengths[spring] = simulation_.model.topology.bending_springs[spring].rest_length;
-        simulation_.context.resource->copy_from_host(bending_rest_lengths_, bending_rest_lengths.data(), bending_rest_lengths.size() * sizeof(float));
-        stretch_segments_.create(host_services, plugin::GpuBufferKindViewportSegmentSet, simulation_.model.topology.stretch_springs.size() * segment_bytes);
-        bending_segments_.create(host_services, plugin::GpuBufferKindViewportSegmentSet, simulation_.model.topology.bending_springs.size() * segment_bytes);
-        load_segments_.create(host_services, plugin::GpuBufferKindViewportSegmentSet, 9u * segment_bytes);
-        for (std::size_t frame_slot = 0u; frame_slot < stretch_segments_.mapped_buffers.size(); ++frame_slot) write_visualization(static_cast<std::uint32_t>(frame_slot));
-        simulation_.context.resource->synchronize();
+    struct Provider {
+        Settings settings;
+
+        static constexpr auto description = spectra::sdk::describe(
+            "xayah.examples.cloth.forward",
+            spectra::sdk::parameter<"mass", &Settings::mass>("Particle Mass", "kg", {.minimum = 0.005, .maximum = 0.20, .step = 0.0025, .application = spectra::sdk::ParameterApplication::Reset, .description = "Mass assigned to every cloth particle.", .section = "Material"}),
+            spectra::sdk::parameter<"stretch_stiffness", &Settings::stretch_stiffness>("Stretch Stiffness", "N/m", {.minimum = 25.0, .maximum = 1000.0, .step = 25.0, .application = spectra::sdk::ParameterApplication::Reset, .description = "In-plane stretch spring stiffness.", .section = "Material"}),
+            spectra::sdk::parameter<"stretch_damping", &Settings::stretch_damping>("Stretch Damping", "N s/m", {.minimum = 0.0, .maximum = 10.0, .step = 0.1, .application = spectra::sdk::ParameterApplication::Reset, .description = "In-plane stretch spring damping.", .section = "Material"}),
+            spectra::sdk::parameter<"bending_stiffness", &Settings::bending_stiffness>("Bending Stiffness", "N/m", {.minimum = 0.1, .maximum = 50.0, .step = 0.1, .application = spectra::sdk::ParameterApplication::Reset, .description = "Out-of-plane bending spring stiffness.", .section = "Material"}),
+            spectra::sdk::parameter<"bending_damping", &Settings::bending_damping>("Bending Damping", "N s/m", {.minimum = 0.0, .maximum = 2.0, .step = 0.05, .application = spectra::sdk::ParameterApplication::Reset, .description = "Out-of-plane bending spring damping.", .section = "Material"}),
+            spectra::sdk::parameter<"gravity_y", &Settings::gravity_y>("Gravity", "m/s^2", {.minimum = -9.81, .maximum = 0.0, .step = 0.05, .application = spectra::sdk::ParameterApplication::Reset, .description = "Vertical acceleration applied to the flag.", .section = "Simulation"}),
+            spectra::sdk::parameter<"wind_speed", &Settings::wind_speed>("Wind Speed", "m/s", {.minimum = 0.0, .maximum = 20.0, .step = 0.25, .application = spectra::sdk::ParameterApplication::Reset, .description = "Mean wind speed from the pole toward the free edge.", .section = "Wind"}),
+            spectra::sdk::parameter<"gust_strength", &Settings::gust_strength>("Gust Strength", {}, {.minimum = 0.0, .maximum = 0.50, .step = 0.01, .application = spectra::sdk::ParameterApplication::Reset, .description = "Fractional amplitude of the spatially varying wind field.", .section = "Wind"}),
+            spectra::sdk::parameter<"gust_frequency", &Settings::gust_frequency>("Gust Frequency", "Hz", {.minimum = 0.10, .maximum = 3.0, .step = 0.05, .application = spectra::sdk::ParameterApplication::Reset, .description = "Base temporal frequency of the wind variation.", .section = "Wind"}),
+            spectra::sdk::parameter<"air_density", &Settings::air_density>("Air Density", "kg/m^3", {.minimum = 0.10, .maximum = 2.0, .step = 0.025, .application = spectra::sdk::ParameterApplication::Reset, .description = "Density used by the aerodynamic pressure model.", .section = "Wind"}),
+            spectra::sdk::parameter<"drag_coefficient", &Settings::drag_coefficient>("Normal Drag", {}, {.minimum = 0.10, .maximum = 3.0, .step = 0.05, .application = spectra::sdk::ParameterApplication::Reset, .description = "Double-sided pressure drag normal to the fabric.", .section = "Wind"}),
+            spectra::sdk::parameter<"skin_drag_coefficient", &Settings::skin_drag_coefficient>("Skin Drag", {}, {.minimum = 0.0, .maximum = 0.50, .step = 0.01, .application = spectra::sdk::ParameterApplication::Reset, .description = "Tangential surface drag that keeps the flag extended along the flow.", .section = "Wind"}),
+            spectra::sdk::parameter<"wind_ramp_duration", &Settings::wind_ramp_duration>("Wind Ramp", "s", {.minimum = 0.10, .maximum = 3.0, .step = 0.05, .application = spectra::sdk::ParameterApplication::Reset, .description = "Smooth startup duration of the airflow.", .section = "Wind"}),
+            spectra::sdk::parameter<"show_wind", &Settings::show_wind>("Show Wind", {}, {.description = "Render three samples of the wind field.", .section = "Display"}),
+            spectra::sdk::parameter<"show_stretch", &Settings::show_stretch>("Show Stretch Strain", {}, {.description = "Render stretch springs with strain coloring.", .section = "Display"}),
+            spectra::sdk::parameter<"show_bending", &Settings::show_bending>("Show Bending", {}, {.description = "Render bending springs over the cloth surface.", .section = "Display"}),
+            spectra::sdk::parameter<"wind_width", &Settings::wind_width>("Wind Width", "px", {.minimum = 0.25, .maximum = 8.0, .step = 0.25, .description = "Screen-space width of wind arrows.", .section = "Display"}),
+            spectra::sdk::parameter<"wind_scale", &Settings::wind_scale>("Wind Scale", "s", {.minimum = 0.01, .maximum = 0.30, .step = 0.01, .description = "World-space scale applied to wind velocity arrows.", .section = "Display"}),
+            spectra::sdk::parameter<"stretch_width", &Settings::stretch_width>("Stretch Width", "px", {.minimum = 0.25, .maximum = 8.0, .step = 0.25, .description = "Screen-space width of stretch springs.", .section = "Display"}),
+            spectra::sdk::parameter<"bending_width", &Settings::bending_width>("Bending Width", "px", {.minimum = 0.25, .maximum = 8.0, .step = 0.25, .description = "Screen-space width of bending springs.", .section = "Display"}),
+            spectra::sdk::parameter<"strain_range", &Settings::strain_range>("Strain Range", {}, {.minimum = 0.01, .maximum = 0.50, .step = 0.01, .description = "Absolute strain mapped to the visualization color extremes.", .section = "Display"}),
+            spectra::sdk::mesh<"surface">(),
+            spectra::sdk::lines<"diagnostics">(),
+            spectra::sdk::vectors<"wind">(),
+            spectra::sdk::metric<"grid", spectra::sdk::Float3>("Grid", {}, "Simulation"),
+            spectra::sdk::metric<"step", std::uint64_t>("Physical Step", {}, "Simulation"),
+            spectra::sdk::metric<"time", double>("Physical Time", "s", "Simulation", true),
+            spectra::sdk::metric<"free_edge_position", spectra::sdk::Float3>("Free Edge Mean Position", "m", "Simulation"),
+            spectra::sdk::metric<"free_edge_displacement", spectra::sdk::Float3>("Free Edge Mean Displacement", "m", "Simulation"),
+            spectra::sdk::metric<"wind_quarter", spectra::sdk::Float3>("Wind u=0.25", "m/s", "Wind"),
+            spectra::sdk::metric<"wind_half", spectra::sdk::Float3>("Wind u=0.50", "m/s", "Wind"),
+            spectra::sdk::metric<"wind_three_quarters", spectra::sdk::Float3>("Wind u=0.75", "m/s", "Wind"),
+            spectra::sdk::metric<"aerodynamic_force", double>("Aerodynamic Force", "N", "Wind", true),
+            spectra::sdk::metric<"velocity", double>("Maximum Velocity", "m/s", "Dynamics", true),
+            spectra::sdk::metric<"kinetic", double>("Kinetic Energy", "J", "Dynamics", true),
+            spectra::sdk::metric<"stretch_strain", double>("Maximum Stretch Strain", {}, "Dynamics", true),
+            spectra::sdk::metric<"bending_strain", double>("Maximum Bending Strain", {}, "Dynamics", true),
+            spectra::sdk::metric<"step_time", double>("Last Step", "ms", "Performance", true),
+            spectra::sdk::metric<"average_step_time", double>("Average Step", "ms", "Performance", true),
+            spectra::sdk::metric<"stretch_material", spectra::sdk::Float3>("Stretch Stiffness / Damping", {}, "Material"),
+            spectra::sdk::metric<"bending_material", spectra::sdk::Float3>("Bending Stiffness / Damping", {}, "Material")
+        );
+
+        Provider(Settings settings, const std::filesystem::path& assets);
+
+        void setup(spectra::sdk::cuda::Setup& setup);
+        void reset(std::uint64_t seed);
+        void step(double seconds);
+        void publish(spectra::sdk::cuda::Output& output);
+
+    private:
+        std::optional<ForwardSimulation> simulation;
+    };
+
+    Provider::Provider(Settings source, const std::filesystem::path&) : settings(source) {}
+
+    void Provider::setup(spectra::sdk::cuda::Setup& setup) {
+        static_cast<void>(setup.mesh<"surface">(vertex_count, 0u));
+        setup.lines<"diagnostics">(diagnostic_capacity);
+        setup.vectors<"wind">(wind_capacity);
     }
 
-    Project::~Project() noexcept {
-        simulation_.context.resource->release(stretch_rest_lengths_);
-        simulation_.context.resource->release(bending_rest_lengths_);
+    void Provider::reset(const std::uint64_t) {
+        ForwardSimulationOptions options = simulation_options;
+        options.mass                  = settings.mass;
+        options.stretch_stiffness     = settings.stretch_stiffness;
+        options.stretch_damping       = settings.stretch_damping;
+        options.bending_stiffness     = settings.bending_stiffness;
+        options.bending_damping       = settings.bending_damping;
+        options.gravity_y             = settings.gravity_y;
+        options.wind_speed            = settings.wind_speed;
+        options.gust_strength         = settings.gust_strength;
+        options.gust_frequency        = settings.gust_frequency;
+        options.air_density           = settings.air_density;
+        options.drag_coefficient      = settings.drag_coefficient;
+        options.skin_drag_coefficient = settings.skin_drag_coefficient;
+        options.wind_ramp_duration    = settings.wind_ramp_duration;
+        simulation.emplace(options);
     }
 
-    const plugin::PluginDefinition<Project>& Project::plugin() {
-        static const plugin::PluginDefinition<Project> definition = [] {
-            plugin::PluginDefinition<Project> value{
-                .id                = "xayah.examples.cloth.forward",
-                .title             = "CUDA Prescribed Traveling Load Cloth",
-                .open_action_label = "Open CUDA Prescribed Traveling Load Cloth",
-                .sections          = {{.id = "simulation", .label = "Simulation"}, {.id = "display", .label = "Display"}},
-                .actions           = {plugin::action<Project>("reset", "Reset Simulation", "Restore the stationary rest state and physical step zero on the next safe frame-slot update.", "simulation", [](Project& project) { project.reset_pending_ = true; })},
-                .settings =
-                    {
-                        plugin::toggle<Project>("show_stretch", "Show Stretch", true, "display",
-                            [](Project& project, const bool value) {
-                                project.show_stretch_ = value;
-                                ++project.content_revision_;
-                                ++project.revision;
-                            }),
-                        plugin::toggle<Project>("show_bending", "Show Bending", false, "display",
-                            [](Project& project, const bool value) {
-                                project.show_bending_ = value;
-                                ++project.content_revision_;
-                                ++project.revision;
-                            }),
-                        plugin::toggle<Project>("show_load", "Show Load", true, "display",
-                            [](Project& project, const bool value) {
-                                project.show_load_ = value;
-                                ++project.content_revision_;
-                                ++project.revision;
-                            }),
-                        plugin::float_setting<Project>("stretch_width", "Stretch Width", 1.5F, "display", 0.25F, 8.0F, 0.25F,
-                            [](Project& project, const float value) {
-                                project.stretch_width_ = value;
-                                ++project.content_revision_;
-                                ++project.revision;
-                            }),
-                        plugin::float_setting<Project>("bending_width", "Bending Width", 1.0F, "display", 0.25F, 8.0F, 0.25F,
-                            [](Project& project, const float value) {
-                                project.bending_width_ = value;
-                                ++project.content_revision_;
-                                ++project.revision;
-                            }),
-                        plugin::float_setting<Project>("load_width", "Load Width", 3.0F, "display", 0.25F, 8.0F, 0.25F,
-                            [](Project& project, const float value) {
-                                project.load_width_ = value;
-                                ++project.content_revision_;
-                                ++project.revision;
-                            }),
-                        plugin::float_setting<Project>("load_scale", "Load Scale", 0.08F, "display", 0.005F, 0.15F, 0.005F,
-                            [](Project& project, const float value) {
-                                project.load_scale_ = value;
-                                ++project.content_revision_;
-                                ++project.revision;
-                            }),
-                        plugin::float_setting<Project>("strain_range", "Strain Range", 0.10F, "display", 0.01F, 0.50F, 0.01F,
-                            [](Project& project, const float value) {
-                                project.strain_range_ = value;
-                                ++project.content_revision_;
-                                ++project.revision;
-                            }),
-                    },
-            };
-            return value;
-        }();
-        return definition;
+    void Provider::step(const double) {
+        simulation->step();
     }
 
-    Project Project::open(plugin::OpenContext context) {
-        return Project(std::move(context.host_services));
-    }
+    void Provider::publish(spectra::sdk::cuda::Output& output) {
+        const cudaStream_t stream = static_cast<cudaStream_t>(simulation->context.resource->native_stream);
+        spectra::sdk::cuda::Frame frame = output.begin(stream);
+        spectra::sdk::cuda::Mesh surface = frame.mesh<"surface">();
+        const State& state = simulation->current_state;
+        project_cuda::launch_positions(stream, vertex_count, state.positions.x.data, state.positions.y.data, state.positions.z.data, surface.positions.data());
+        surface.vertex_count   = vertex_count;
+        surface.triangle_count = 0u;
 
-    void Project::update(const plugin::UpdateInfo& update) {
-        current_frame_slot_ = update.frame_slot_index;
-        update_running_     = update.update_running;
-        if (reset_pending_) {
-            simulation_.reset();
-            reset_pending_ = false;
-            ++content_revision_;
-            ++revision;
+        const std::uint32_t diagnostic_count = (settings.show_stretch ? stretch_count : 0u) + (settings.show_bending ? bending_count : 0u);
+        std::span<spectra::sdk::Line> diagnostics = frame.lines<"diagnostics">(diagnostic_count);
+        const DeviceTopology& topology = simulation->context.device_topology;
+        std::uint32_t diagnostic_offset{};
+        if (settings.show_stretch) {
+            project_cuda::launch_segments(stream, stretch_count, state.positions.x.data, state.positions.y.data, state.positions.z.data, topology.stretch.first.data, topology.stretch.second.data, simulation->parameters.stretch_rest_lengths.data, settings.stretch_width, settings.strain_range, project_cuda::SegmentStyle::Stretch, diagnostics.data());
+            diagnostic_offset += stretch_count;
         }
-        if (update.update_delta_seconds > 0.0) {
-            simulation_.step();
-            ++content_revision_;
-            ++revision;
+        if (settings.show_bending) {
+            project_cuda::launch_segments(stream, bending_count, state.positions.x.data, state.positions.y.data, state.positions.z.data, topology.bending.first.data, topology.bending.second.data, simulation->parameters.bending_rest_lengths.data, settings.bending_width, settings.strain_range, project_cuda::SegmentStyle::Bending, diagnostics.data() + diagnostic_offset);
         }
-        if (stretch_segments_.slot_revisions[update.frame_slot_index] != content_revision_ || bending_segments_.slot_revisions[update.frame_slot_index] != content_revision_ || load_segments_.slot_revisions[update.frame_slot_index] != content_revision_) write_visualization(update.frame_slot_index);
-    }
-
-    void Project::write_document(plugin::SceneBuilder& scene) const {
-        scene.set_document(plugin::Document{
-            .update = {.enabled = true, .initial_running = false, .step_delta_seconds = simulation_.options.time_step},
-            .navigation_target =
-                {
-                    .revision       = 1u,
-                    .focus          = {1.50F, -1.00F, 0.00F},
-                    .bounds_minimum = {-0.25F, -2.40F, -1.80F},
-                    .bounds_maximum = {3.30F, 0.45F, 1.80F},
-                    .navigation_up  = {0.0F, 1.0F, 0.0F},
-                },
-            .active_camera_name = "Overview",
-        });
-    }
-
-    void Project::write_frame(plugin::SceneBuilder& scene, const plugin::FrameInfo) const {
-        plugin::Document document{.cameras = {overview_camera()}};
-        if (show_stretch_) document.viewport_segment_sets.push_back({.name = "Stretch Springs", .owner_name = "Overview", .segment_count = simulation_.model.topology.stretch_springs.size(), .buffer_id = stretch_segments_.allocation.resource_id, .source_byte_size = stretch_segments_.allocation.byte_size, .width = stretch_width_});
-        if (show_bending_) document.viewport_segment_sets.push_back({.name = "Bending Springs", .owner_name = "Overview", .segment_count = simulation_.model.topology.bending_springs.size(), .buffer_id = bending_segments_.allocation.resource_id, .source_byte_size = bending_segments_.allocation.byte_size, .width = bending_width_});
-        if (show_load_) document.viewport_segment_sets.push_back({.name = "Prescribed Traveling Load", .owner_name = "Overview", .segment_count = 9u, .buffer_id = load_segments_.allocation.resource_id, .source_byte_size = load_segments_.allocation.byte_size, .width = load_width_});
-        scene.set_document(std::move(document));
-    }
-
-    void Project::write_controls(plugin::ControlBuilder& controls) const {
-        const ForwardSimulationMetrics& metrics = simulation_.metrics;
-        controls.phase(update_running_ ? "Forward Simulation" : "Paused")
-            .headline("64 x 96 prescribed-traveling-load forward cloth")
-            .message("Bottom playback advances physical time directly. This gravity-free scene isolates a prescribed mass-independent traveling normal load; it is not an aerodynamic model.")
-            .metric("grid", "Grid", std::format("{} x {}", simulation_.options.rows, simulation_.options.columns), "simulation")
-            .metric("step", "Physical Step", std::to_string(metrics.step), "simulation")
-            .metric("time", "Physical Time", std::format("{:.3f} s", metrics.physical_time), "simulation")
-            .metric("stretch_material", "Stretch Stiffness / Damping", std::format("{:.1f} / {:.2f}", simulation_.options.stretch_stiffness, simulation_.options.stretch_damping), "simulation")
-            .metric("bending_material", "Bending Stiffness / Damping", std::format("{:.1f} / {:.2f}", simulation_.options.bending_stiffness, simulation_.options.bending_damping), "simulation")
-            .metric("load_quarter", "Load u=0.25", std::format("{:+.5f} m/s^2", metrics.sampled_load_accelerations[0]), "simulation")
-            .metric("load_half", "Load u=0.50", std::format("{:+.5f} m/s^2", metrics.sampled_load_accelerations[1]), "simulation")
-            .metric("load_three_quarters", "Load u=0.75", std::format("{:+.5f} m/s^2", metrics.sampled_load_accelerations[2]), "simulation")
-            .metric("free_edge_position", "Free Edge Mean Position", std::format("[{:+.5f}, {:+.5f}, {:+.5f}] m", metrics.free_edge_mean_position.x, metrics.free_edge_mean_position.y, metrics.free_edge_mean_position.z), "simulation")
-            .metric("free_edge_displacement", "Free Edge Mean Displacement", std::format("[{:+.5f}, {:+.5f}, {:+.5f}] m", metrics.free_edge_mean_displacement.x, metrics.free_edge_mean_displacement.y, metrics.free_edge_mean_displacement.z), "simulation")
-            .metric("velocity", "Maximum Velocity", std::format("{:.6f} m/s", metrics.maximum_velocity), "simulation")
-            .metric("kinetic", "Kinetic Energy", std::format("{:.7f} J", metrics.kinetic_energy), "simulation")
-            .metric("stretch_strain", "Maximum Stretch Strain", std::format("{:.6f}", metrics.maximum_absolute_stretch_strain), "simulation")
-            .metric("bending_strain", "Maximum Bending Strain", std::format("{:.6f}", metrics.maximum_absolute_bending_strain), "simulation")
-            .metric("step_time", "Forward Step", std::format("{:.3f} ms", metrics.step_milliseconds), "simulation")
-            .metric("average_step_time", "Average Step", std::format("{:.3f} ms", metrics.average_step_milliseconds), "simulation")
-            .metric("slot", "Frame Slot", std::to_string(current_frame_slot_), "display")
-            .setting("show_stretch", show_stretch_ ? "true" : "false")
-            .setting("show_bending", show_bending_ ? "true" : "false")
-            .setting("show_load", show_load_ ? "true" : "false")
-            .setting("stretch_width", std::format("{}", stretch_width_))
-            .setting("bending_width", std::format("{}", bending_width_))
-            .setting("load_width", std::format("{}", load_width_))
-            .setting("load_scale", std::format("{}", load_scale_))
-            .setting("strain_range", std::format("{}", strain_range_))
-            .enable("reset");
-    }
-
-    void Project::write_visualization(const std::uint32_t frame_slot_index) {
-        const cudaStream_t stream      = static_cast<cudaStream_t>(simulation_.context.resource->native_stream);
-        const DeviceTopology& topology = simulation_.context.device_topology;
-        project_cuda::launch_segments(stream, static_cast<std::uint32_t>(simulation_.model.topology.stretch_springs.size()), simulation_.current_state.positions.x.data, simulation_.current_state.positions.y.data, simulation_.current_state.positions.z.data, topology.stretch.first.data, topology.stretch.second.data, stretch_rest_lengths_, stretch_width_, strain_range_, project_cuda::SegmentStyle::stretch, stretch_segments_.mapped_buffers[frame_slot_index]);
-        project_cuda::launch_segments(stream, static_cast<std::uint32_t>(simulation_.model.topology.bending_springs.size()), simulation_.current_state.positions.x.data, simulation_.current_state.positions.y.data, simulation_.current_state.positions.z.data, topology.bending.first.data, topology.bending.second.data, bending_rest_lengths_, bending_width_, strain_range_, project_cuda::SegmentStyle::bending, bending_segments_.mapped_buffers[frame_slot_index]);
-        for (std::uint32_t sample = 0u; sample < 3u; ++sample) {
-            project_cuda::launch_load_arrow(stream, simulation_.options.width * static_cast<float>(sample + 1u) * 0.25F, 0.18F, 0.0F, static_cast<float>(simulation_.metrics.sampled_load_accelerations[sample]), load_scale_, load_width_, static_cast<std::byte*>(load_segments_.mapped_buffers[frame_slot_index]) + static_cast<std::size_t>(sample) * 3u * segment_bytes);
-        }
+        std::span<spectra::sdk::Vector> wind_vectors = frame.vectors<"wind">(settings.show_wind ? wind_capacity : 0u);
+        if (settings.show_wind)
+            for (std::uint32_t sample = 0u; sample != wind_capacity; ++sample) {
+                const Vector3& wind = simulation->metrics.sampled_wind_velocities[sample];
+                project_cuda::launch_wind_vector(stream, -1.05F, -0.35F - 0.65F * static_cast<float>(sample), 0.15F, wind.x, wind.z, settings.wind_scale, settings.wind_width, wind_vectors.data() + sample);
+            }
         if (const cudaError_t status = cudaGetLastError(); status != cudaSuccess) throw std::runtime_error(std::format("cloth visualization kernel launch failed: {}", cudaGetErrorString(status)));
-        simulation_.context.resource->synchronize();
-        stretch_segments_.slot_revisions[frame_slot_index] = content_revision_;
-        bending_segments_.slot_revisions[frame_slot_index] = content_revision_;
-        load_segments_.slot_revisions[frame_slot_index]    = content_revision_;
+
+        const ForwardSimulationMetrics& metrics = simulation->metrics;
+        frame.metric<"grid">().upload(spectra::sdk::Float3{static_cast<float>(simulation->options.columns), static_cast<float>(simulation->options.rows), 1.0F});
+        frame.metric<"step">().upload(metrics.step);
+        frame.metric<"time">().upload(metrics.physical_time);
+        frame.metric<"free_edge_position">().upload(spectra::sdk::Float3{metrics.free_edge_mean_position.x, metrics.free_edge_mean_position.y, metrics.free_edge_mean_position.z});
+        frame.metric<"free_edge_displacement">().upload(spectra::sdk::Float3{metrics.free_edge_mean_displacement.x, metrics.free_edge_mean_displacement.y, metrics.free_edge_mean_displacement.z});
+        frame.metric<"wind_quarter">().upload(spectra::sdk::Float3{metrics.sampled_wind_velocities[0].x, metrics.sampled_wind_velocities[0].y, metrics.sampled_wind_velocities[0].z});
+        frame.metric<"wind_half">().upload(spectra::sdk::Float3{metrics.sampled_wind_velocities[1].x, metrics.sampled_wind_velocities[1].y, metrics.sampled_wind_velocities[1].z});
+        frame.metric<"wind_three_quarters">().upload(spectra::sdk::Float3{metrics.sampled_wind_velocities[2].x, metrics.sampled_wind_velocities[2].y, metrics.sampled_wind_velocities[2].z});
+        frame.metric<"aerodynamic_force">().upload(metrics.aerodynamic_force);
+        frame.metric<"velocity">().upload(metrics.maximum_velocity);
+        frame.metric<"kinetic">().upload(metrics.kinetic_energy);
+        frame.metric<"stretch_strain">().upload(metrics.maximum_absolute_stretch_strain);
+        frame.metric<"bending_strain">().upload(metrics.maximum_absolute_bending_strain);
+        frame.metric<"step_time">().upload(metrics.step_milliseconds);
+        frame.metric<"average_step_time">().upload(metrics.average_step_milliseconds);
+        frame.metric<"stretch_material">().upload(spectra::sdk::Float3{simulation->options.stretch_stiffness, simulation->options.stretch_damping, 0.0F});
+        frame.metric<"bending_material">().upload(spectra::sdk::Float3{simulation->options.bending_stiffness, simulation->options.bending_damping, 0.0F});
+        frame.commit();
     }
-
-} // namespace xayah::cloth::examples::forward::project
-
-extern "C" XAYAH_CLOTH_FORWARD_PLUGIN_EXPORT auto spectra_scene_plugin_v21() -> decltype(xayah::spectra::plugin::export_plugin<xayah::cloth::examples::forward::project::Project>()) {
-    return xayah::spectra::plugin::export_plugin<xayah::cloth::examples::forward::project::Project>();
 }

@@ -11,12 +11,6 @@ namespace xayah::smoke::cuda_kernels {
         constexpr unsigned block_size = 256u;
         constexpr float smooth_epsilon = 1.0e-6F;
 
-        struct Vector {
-            float x;
-            float y;
-            float z;
-        };
-
         struct Sample {
             float value;
             Vector gradient;

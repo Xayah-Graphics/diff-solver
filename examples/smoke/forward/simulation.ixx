@@ -23,6 +23,7 @@ export namespace xayah::smoke::examples::forward {
         Vector3 left_acceleration{3.5F, 5.0F, 1.8F};
         Vector3 right_acceleration{-3.5F, 5.0F, -1.8F};
         float pulse_period{0.9F};
+        bool host_metrics{true};
     };
 
     struct ForwardSimulationMetrics {
@@ -46,6 +47,7 @@ export namespace xayah::smoke::examples::forward {
         ExecutionContext context;
         State current_state;
         ForwardSimulationMetrics metrics;
+        double* device_metrics;
 
         explicit ForwardSimulation(ForwardSimulationOptions options = {});
         ~ForwardSimulation() noexcept;
@@ -63,7 +65,6 @@ export namespace xayah::smoke::examples::forward {
         Control control_;
         Parameters parameters_;
         StepCache step_cache_;
-        double* device_metrics_;
     };
 
 } // namespace xayah::smoke::examples::forward

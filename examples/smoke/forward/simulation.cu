@@ -21,7 +21,7 @@ namespace xayah::smoke::examples::forward::simulation_cuda {
             return __longlong_as_double(previous);
         }
 
-        __device__ float gaussian(const float x, const float y, const float z, const Vector center, const float radius) {
+        __device__ float gaussian(const float x, const float y, const float z, const cuda_kernels::Vector center, const float radius) {
             const float dx = x - center.x;
             const float dy = y - center.y;
             const float dz = z - center.z;
@@ -32,7 +32,7 @@ namespace xayah::smoke::examples::forward::simulation_cuda {
             return x + static_cast<std::uint64_t>(nx) * (y + static_cast<std::uint64_t>(ny) * z);
         }
 
-        __global__ void write_control_kernel(const Grid grid, const std::uint64_t step, const float pulse_period, const Vector left_center, const Vector right_center, const float source_radius, const float density_source_rate, const float temperature_source_rate, const Vector left_acceleration, const Vector right_acceleration, float* const density_source, float* const temperature_source, const VectorField external_acceleration) {
+        __global__ void write_control_kernel(const cuda_kernels::Grid grid, const std::uint64_t step, const float pulse_period, const cuda_kernels::Vector left_center, const cuda_kernels::Vector right_center, const float source_radius, const float density_source_rate, const float temperature_source_rate, const cuda_kernels::Vector left_acceleration, const cuda_kernels::Vector right_acceleration, float* const density_source, float* const temperature_source, const cuda_kernels::CenteredVectorView external_acceleration) {
             const std::uint32_t cell = blockIdx.x * blockDim.x + threadIdx.x;
             const std::uint32_t cell_count = grid.nx * grid.ny * grid.nz;
             if (cell >= cell_count) return;
@@ -56,7 +56,7 @@ namespace xayah::smoke::examples::forward::simulation_cuda {
             external_acceleration.z[cell] = left_weight * left_acceleration.z + right_weight * right_acceleration.z;
         }
 
-        __global__ void reduce_metrics_kernel(const Grid grid, const std::uint32_t* const cell_mask, const float* const density, const float* const temperature, const ConstStaggeredVectorField pre_projection_velocity, const ConstStaggeredVectorField post_projection_velocity, double* const metrics) {
+        __global__ void reduce_metrics_kernel(const cuda_kernels::Grid grid, const std::uint32_t* const cell_mask, const float* const density, const float* const temperature, const cuda_kernels::ConstStaggeredVectorView pre_projection_velocity, const cuda_kernels::ConstStaggeredVectorView post_projection_velocity, double* const metrics) {
             const std::uint32_t cell = blockIdx.x * blockDim.x + threadIdx.x;
             const std::uint32_t cell_count = grid.nx * grid.ny * grid.nz;
             if (cell >= cell_count || cell_mask[cell] != 0u) return;
@@ -94,13 +94,13 @@ namespace xayah::smoke::examples::forward::simulation_cuda {
 
     } // namespace
 
-    void launch_write_control(const cudaStream_t stream, const Grid grid, const std::uint64_t step, const float pulse_period, const Vector left_center, const Vector right_center, const float source_radius, const float density_source_rate, const float temperature_source_rate, const Vector left_acceleration, const Vector right_acceleration, float* const density_source, float* const temperature_source, const VectorField external_acceleration) {
+    void launch_write_control(const cudaStream_t stream, const cuda_kernels::Grid grid, const std::uint64_t step, const float pulse_period, const cuda_kernels::Vector left_center, const cuda_kernels::Vector right_center, const float source_radius, const float density_source_rate, const float temperature_source_rate, const cuda_kernels::Vector left_acceleration, const cuda_kernels::Vector right_acceleration, float* const density_source, float* const temperature_source, const cuda_kernels::CenteredVectorView external_acceleration) {
         const std::uint32_t cell_count = grid.nx * grid.ny * grid.nz;
         write_control_kernel<<<blocks(cell_count), block_size, 0u, stream>>>(grid, step, pulse_period, left_center, right_center, source_radius, density_source_rate, temperature_source_rate, left_acceleration, right_acceleration, density_source, temperature_source, external_acceleration);
         check_launch();
     }
 
-    void launch_reduce_metrics(const cudaStream_t stream, const Grid grid, const std::uint32_t* const cell_mask, const float* const density, const float* const temperature, const ConstStaggeredVectorField pre_projection_velocity, const ConstStaggeredVectorField post_projection_velocity, double* const metrics) {
+    void launch_reduce_metrics(const cudaStream_t stream, const cuda_kernels::Grid grid, const std::uint32_t* const cell_mask, const float* const density, const float* const temperature, const cuda_kernels::ConstStaggeredVectorView pre_projection_velocity, const cuda_kernels::ConstStaggeredVectorView post_projection_velocity, double* const metrics) {
         const std::uint32_t cell_count = grid.nx * grid.ny * grid.nz;
         reduce_metrics_kernel<<<blocks(cell_count), block_size, 0u, stream>>>(grid, cell_mask, density, temperature, pre_projection_velocity, post_projection_velocity, metrics);
         check_launch();

@@ -1,19 +1,35 @@
 name: Windows Build
 
 on:
+  workflow_dispatch:
   push:
   pull_request:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
+    name: Windows Server 2025 and Visual Studio 2026
     runs-on: windows-2025-vs2026
+    timeout-minutes: 180
 
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v6
+      - name: Check out diff-solver
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Check out Spectra SDK
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: Xayah-Graphics/spectra
+          path: spectra-source
+          persist-credentials: false
 
       - name: Install CMake and Ninja
         run: python -m pip install cmake==4.4.0 ninja
@@ -38,12 +54,25 @@ jobs:
               if ($_ -match '^([^=]+)=(.*)$') { "$($matches[1])=$($matches[2])" >> $env:GITHUB_ENV }
           }
 
-      - name: Configure
-        run: >-
-          cmake -S . -B cmake-build-release -G Ninja
-          -DCMAKE_BUILD_TYPE=Release
-          -DDIFF_SOLVER_BUILD_EXAMPLES=ON
-          -DDIFF_SOLVER_BUILD_SPECTRA_PLUGINS=ON
+      - name: Build and install Spectra SDK
+        shell: pwsh
+        run: |
+          $prefix = Join-Path $env:RUNNER_TEMP 'SpectraSDK'
+          cmake -S spectra-source/sdk -B spectra-sdk-cmake-build-release -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_INSTALL_PREFIX="$prefix"
+          cmake --build spectra-sdk-cmake-build-release --parallel 30
+          cmake --install spectra-sdk-cmake-build-release --component SDK
 
-      - name: Build
+      - name: Configure diff-solver
+        shell: pwsh
+        run: |
+          $prefix = Join-Path $env:RUNNER_TEMP 'SpectraSDK'
+          cmake -S . -B cmake-build-release -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_PREFIX_PATH="$prefix" `
+            -DDIFF_SOLVER_BUILD_EXAMPLES=ON `
+            -DDIFF_SOLVER_BUILD_SPECTRA_PROVIDERS=ON
+
+      - name: Build diff-solver
         run: cmake --build cmake-build-release --parallel 30
