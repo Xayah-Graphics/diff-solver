@@ -1,4 +1,4 @@
-spectra 33 "Flag in Wind" {
+spectra 34 "Flag in Wind" {
     active camera=1 film=1 sampler=1
     geometries {
         triangle-mesh 1 "Dynamic Flag Surface" source="assets/flag.ply"
@@ -106,9 +106,9 @@ spectra 33 "Flag in Wind" {
         instance 2 "Studio Floor" prototype=2
         instance 3 "Fixed Edge" prototype=3
     }
-    dynamics seed=20260809 {
-        clock step-seconds=0.004166666666666667 end-step=1920 loop=#true
-        system "cloth-forward" "Flag in Wind" provider="xayah.examples.cloth.forward" {
+    dynamics {
+        clock step-seconds=0.004166666666666667
+        system "cloth-forward" "Cloth Forward" provider="xayah.examples.cloth.forward" {
             scene-bind "surface" 1
             visualize "diagnostics" "Cloth Diagnostics" kind="segments" depth="tested"
             visualize "wind" "Wind Velocity" kind="vectors" depth="tested"
